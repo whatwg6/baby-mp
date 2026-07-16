@@ -1,20 +1,52 @@
 import { Button, Image, Text, View } from '@tarojs/components'
-import { useState } from 'react'
+import { useDidShow } from '@tarojs/taro'
+import { useCallback, useEffect, useState } from 'react'
 
 import { PageState } from '../../components/PageState'
 import { useProtectedPage } from '../../features/auth/use-protected-page'
 import { formatBabyAge } from '../../features/babies/validation'
-import { loadBabies, selectBaby, useBabyState } from '../../features/babies/store'
+import { getBabyContext, loadBabies, selectBaby, useBabyState } from '../../features/babies/store'
+import { listRecords } from '../../features/records/api'
+import { RecordCard } from '../../features/records/RecordCard'
+import type { GrowthRecord, RecordType } from '../../features/records/types'
 import { platform } from '../../platform'
 
 import './index.scss'
 
 const roleLabels = { admin: '管理员', editor: '可编辑成员', viewer: '只读成员' }
+const quickRecordTypes: Array<{ label: string; type: RecordType }> = [
+  { label: '图文', type: 'note' },
+  { label: '测量', type: 'measurement' },
+  { label: '里程碑', type: 'milestone' },
+]
 
 export default function HomePage() {
   const ready = useProtectedPage()
   const state = useBabyState()
   const [switcherOpen, setSwitcherOpen] = useState(false)
+  const [recentRecords, setRecentRecords] = useState<GrowthRecord[]>([])
+  const [recentLoading, setRecentLoading] = useState(false)
+  const [recentError, setRecentError] = useState<string>()
+  const babyId = state.current?.id
+
+  const loadRecent = useCallback(() => {
+    if (!babyId) { setRecentRecords([]); setRecentError(undefined); return }
+    const context = getBabyContext()
+    let active = true
+    setRecentLoading(true)
+    setRecentError(undefined)
+    listRecords(babyId, { limit: 3 }).then((page) => {
+      const latest = getBabyContext()
+      if (!active || latest.babyId !== context.babyId || latest.generation !== context.generation) return
+      setRecentRecords(page.data)
+    }).catch((cause) => {
+      if (active) setRecentError(cause instanceof Error ? cause.message : '最近记录加载失败')
+    }).finally(() => { if (active) setRecentLoading(false) })
+    return () => { active = false }
+  }, [babyId])
+
+  useEffect(() => loadRecent(), [loadRecent])
+  useDidShow(() => { loadRecent() })
 
   if (!ready || state.status === 'loading' || state.status === 'idle') {
     return <View className="page-shell"><PageState kind="loading" title="正在准备宝宝空间" /></View>
@@ -34,13 +66,17 @@ export default function HomePage() {
       <Text className="baby-header-card__arrow">⌄</Text>
     </View>
     {canEdit ? <View className="home-section"><Text className="section-title">快速记录</Text><View className="quick-actions">
-      {['图文', '测量', '里程碑'].map((label) => <Button key={label} onClick={() => void platform.showToast('记录功能将在下一里程碑开放')}>{label}</Button>)}
+      {quickRecordTypes.map((item) => <Button key={item.type} onClick={() => void platform.navigateTo(`/pages/records/edit?type=${item.type}&babyId=${baby.id}&source=home`)}>{item.label}</Button>)}
     </View></View> : null}
     <View className="home-section"><Text className="section-title">最近记录</Text>
-      <View className="surface-card first-record"><Text className="first-record__title">记录宝宝的第一个成长瞬间</Text>
+      {recentLoading ? <PageState kind="loading" title="正在读取最近记录" /> : null}
+      {!recentLoading && recentError ? <PageState kind="error" title="最近记录加载失败" description={recentError} actionLabel="前往时间轴重试" onAction={() => void platform.switchTab('/pages/timeline/index')} /> : null}
+      {!recentLoading && !recentError && recentRecords.map((record) => <RecordCard key={record.id} record={record} onClick={() => void platform.navigateTo(`/pages/records/detail?id=${record.id}`)} />)}
+      {!recentLoading && !recentError && recentRecords.length > 0 ? <Button className="link-button" onClick={() => void platform.switchTab('/pages/timeline/index')}>查看全部记录</Button> : null}
+      {!recentLoading && !recentError && recentRecords.length === 0 ? <View className="surface-card first-record"><Text className="first-record__title">记录宝宝的第一个成长瞬间</Text>
         <Text className="first-record__description">这里会展示最近的家庭成长记录。</Text>
-        {canEdit ? <Button className="secondary-button" onClick={() => void platform.showToast('记录功能将在下一里程碑开放')}>添加第一条记录</Button> : null}
-      </View>
+        {canEdit ? <Button className="secondary-button" onClick={() => void platform.navigateTo(`/pages/records/edit?babyId=${baby.id}&source=home`)}>添加第一条记录</Button> : null}
+      </View> : null}
     </View>
     {switcherOpen ? <View className="switcher-overlay" onClick={() => setSwitcherOpen(false)}><View className="switcher-panel" onClick={(event) => event.stopPropagation()}>
       <Text className="switcher-panel__title">切换宝宝</Text>

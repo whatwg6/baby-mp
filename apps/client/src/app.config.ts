@@ -4,6 +4,8 @@ export default defineAppConfig({
     'pages/babies/create',
     'pages/babies/index',
     'pages/babies/edit',
+    'pages/records/edit',
+    'pages/records/detail',
     'pages/home/index',
     'pages/timeline/index',
     'pages/growth/index',

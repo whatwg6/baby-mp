@@ -376,6 +376,8 @@ Idempotency-Key: <uuid>
 
 editor 或 admin。
 
+M3 仅接受 `image/jpeg` 与 `image/png`，单文件最大 20 MiB，上传签名有效 10 分钟；客户端压缩目标不超过 2 MiB/张。对象键由服务端随机生成，不使用原文件名或业务字段。
+
 ```json
 {
   "fileName": "photo.jpg",
@@ -414,13 +416,13 @@ editor 或 admin。
 }
 ```
 
-服务端校验对象存在、大小和 MIME 类型后返回 Media。文件尚未可用时可返回 `202` 和 `uploaded` 状态，客户端轮询媒体详情。
+仅上传者或当前 admin 可确认。M3 采用同步确认：服务端校验临时对象的大小、真实 JPEG/PNG 内容和图片尺寸，将其固化为不可覆盖的 ready 对象后返回 Media；失败时保持不可关联状态并允许重试。未来若引入异步内容处理，再通过版本化契约增加 `202/uploaded` 轮询状态，M3 客户端不依赖该分支。
 
 ### 7.3 媒体详情
 
 `GET /media/{mediaId}`
 
-仅对所属宝宝的有效成员返回，包含短期 `accessUrl`。不得提供按 object key 读取接口。
+仅对所属宝宝的有效成员返回，包含有效 5 分钟的 `accessUrl`。不得提供按 object key 读取接口或独立返回 object key；签名 URL 中不可避免的路径必须使用随机值，不得包含用户、宝宝或正文信息，也不得写入日志。
 
 ### 7.4 放弃未关联媒体
 
@@ -445,6 +447,8 @@ editor 或 admin。
 | `endAt` | datetime | 可选发生时间上界 |
 
 按 `occurredAt desc, id desc` 排序。
+
+`limit` 默认 20、最大 50，超过上限返回 400；无效或错查询上下文的游标返回 400，不做静默截断。
 
 ### 8.2 创建记录
 
@@ -490,7 +494,7 @@ editor 或 admin，需要 `Idempotency-Key`。
 }
 ```
 
-服务端按类型校验必填项，并验证全部 media 为 `ready`、属于同一宝宝且当前用户有权关联。
+服务端按类型校验必填项，并验证全部 media 为 `ready`、属于同一宝宝且当前用户有权关联。每条记录最多 9 张且 ID 不重复；editor 只能关联自己上传的媒体，admin 可关联宝宝内 ready 媒体。
 
 ### 8.3 记录详情
 

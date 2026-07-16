@@ -1,0 +1,17 @@
+@use '../../styles/tokens.scss' as *;
+
+.timeline-baby { display: flex; align-items: center; justify-content: space-between; margin-bottom: $space-md; padding: $space-md; border: 1px solid $color-border; border-radius: $radius-md; background: $color-surface; }
+.timeline-baby__label, .timeline-baby__name { display: block; }
+.timeline-baby__label { color: $color-text-secondary; font-size: 12px; }
+.timeline-baby__name { margin-top: $space-xs; font-weight: 700; }
+.timeline-filters { display: flex; gap: $space-sm; margin-bottom: $space-lg; overflow-x: auto; }
+.timeline-filter { min-width: 66px; height: 36px; margin: 0; padding: 0 $space-md; border: 1px solid $color-border; border-radius: $radius-round; background: $color-surface; color: $color-text-secondary; font-size: $font-sm; line-height: 34px; }
+.timeline-filter.is-active { border-color: $color-primary; background: $color-primary-soft; color: $color-primary; }
+.timeline-footer { display: block; padding: $space-md; color: $color-text-secondary; text-align: center; font-size: $font-sm; }
+.timeline-inline-error { display: flex; align-items: center; justify-content: space-between; padding: $space-md; border-radius: $radius-sm; background: $color-primary-soft; color: $color-danger; font-size: $font-sm; }
+.timeline-add { position: fixed; right: $space-lg; bottom: calc(76px + env(safe-area-inset-bottom)); width: 56px; height: 56px; border-radius: 50%; background: $color-primary; color: white; font-size: 28px; line-height: 56px; box-shadow: 0 8px 24px rgba(48,45,43,.2); }
+.timeline-switcher-overlay { position: fixed; inset: 0; z-index: 20; display: flex; align-items: flex-end; background: $color-overlay; }
+.timeline-switcher { width: 100%; padding: $space-lg $space-md calc($space-lg + env(safe-area-inset-bottom)); border-radius: $radius-md $radius-md 0 0; background: $color-surface; }
+.timeline-switcher__title { display: block; margin-bottom: $space-md; font-size: $font-lg; font-weight: 700; }
+.timeline-switcher__item { display: flex; justify-content: space-between; padding: $space-md 0; border-bottom: 1px solid $color-border; }
+.timeline-switcher__item.is-current { color: $color-primary; font-weight: 700; }

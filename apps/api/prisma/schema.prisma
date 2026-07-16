@@ -47,6 +47,24 @@ enum MemberStatus {
   @@map("member_status")
 }
 
+enum RecordType {
+  note
+  measurement
+  milestone
+
+  @@map("record_type")
+}
+
+enum MediaStatus {
+  pending
+  uploaded
+  ready
+  failed
+  deleted
+
+  @@map("media_status")
+}
+
 model User {
   id           String             @id @default(uuid()) @db.Uuid
   displayName  String?            @map("display_name") @db.VarChar(80)
@@ -56,6 +74,7 @@ model User {
   createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt    DateTime?          @map("deleted_at") @db.Timestamptz(3)
+  avatarMedia  Media?             @relation("UserAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
   identities   PlatformIdentity[]
   sessions     RefreshSession[]
   memberships  BabyMember[]       @relation("MemberUser")
@@ -63,6 +82,10 @@ model User {
   invitedMemberships BabyMember[]  @relation("MemberInviter")
   removedMemberships BabyMember[]  @relation("MemberRemover")
   idempotencyKeys IdempotencyKey[]
+  ownedMedia    Media[]            @relation("MediaOwner")
+  createdRecords Record[]          @relation("RecordCreator")
+  updatedRecords Record[]          @relation("RecordUpdater")
+  deletedRecords Record[]          @relation("RecordDeleter")
 
   @@map("users")
 }
@@ -119,9 +142,94 @@ model Baby {
   deletedAt       DateTime?    @map("deleted_at") @db.Timestamptz(3)
   creator         User         @relation("BabyCreator", fields: [createdBy], references: [id], onDelete: Restrict)
   members         BabyMember[]
+  media           Media[]
+  records         Record[]
+  avatarMedia     Media?        @relation("BabyAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
 
   @@index([createdBy])
   @@map("babies")
+}
+
+model Media {
+  id              String      @id @default(uuid()) @db.Uuid
+  ownerUserId     String      @map("owner_user_id") @db.Uuid
+  babyId          String      @map("baby_id") @db.Uuid
+  storageProvider String      @default("s3") @map("storage_provider") @db.VarChar(32)
+  bucket          String      @db.VarChar(128)
+  objectKey       String      @unique @map("object_key") @db.VarChar(512)
+  uploadObjectKey String?     @unique @map("upload_object_key") @db.VarChar(512)
+  mimeType        String      @map("mime_type") @db.VarChar(100)
+  sizeBytes       BigInt      @map("size_bytes")
+  width           Int?
+  height          Int?
+  sha256          String?     @db.Char(64)
+  status          MediaStatus @default(pending)
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  readyAt         DateTime?   @map("ready_at") @db.Timestamptz(3)
+  deletedAt       DateTime?   @map("deleted_at") @db.Timestamptz(3)
+  purgedAt        DateTime?   @map("purged_at") @db.Timestamptz(3)
+  owner           User        @relation("MediaOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  baby            Baby        @relation(fields: [babyId], references: [id], onDelete: Cascade)
+  records         RecordMedia[]
+  userAvatars     User[]      @relation("UserAvatar")
+  babyAvatars     Baby[]      @relation("BabyAvatar")
+
+  @@index([babyId, status])
+  @@index([ownerUserId, status, createdAt])
+  @@map("media")
+}
+
+model Record {
+  id          String             @id @default(uuid()) @db.Uuid
+  babyId      String             @map("baby_id") @db.Uuid
+  type        RecordType
+  title       String?            @db.VarChar(120)
+  content     String?
+  occurredAt  DateTime           @map("occurred_at") @db.Timestamptz(3)
+  createdBy   String             @map("created_by") @db.Uuid
+  updatedBy   String             @map("updated_by") @db.Uuid
+  metadata    Json               @default("{}")
+  version     Int                @default(1)
+  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt   DateTime?          @map("deleted_at") @db.Timestamptz(3)
+  deletedBy   String?            @map("deleted_by") @db.Uuid
+  baby        Baby               @relation(fields: [babyId], references: [id], onDelete: Cascade)
+  creator     User               @relation("RecordCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+  updater     User               @relation("RecordUpdater", fields: [updatedBy], references: [id], onDelete: Restrict)
+  deleter     User?              @relation("RecordDeleter", fields: [deletedBy], references: [id], onDelete: Restrict)
+  measurement MeasurementRecord?
+  media       RecordMedia[]
+
+  @@index([babyId, occurredAt(sort: Desc), id(sort: Desc)])
+  @@index([babyId, type, occurredAt(sort: Desc), id(sort: Desc)])
+  @@index([createdBy, createdAt(sort: Desc)])
+  @@map("records")
+}
+
+model MeasurementRecord {
+  recordId  String   @id @map("record_id") @db.Uuid
+  heightCm  Decimal? @map("height_cm") @db.Decimal(5, 2)
+  weightKg  Decimal? @map("weight_kg") @db.Decimal(6, 3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  record    Record   @relation(fields: [recordId], references: [id], onDelete: Cascade)
+
+  @@map("measurement_records")
+}
+
+model RecordMedia {
+  recordId  String   @map("record_id") @db.Uuid
+  mediaId   String   @map("media_id") @db.Uuid
+  sortOrder Int      @map("sort_order") @db.SmallInt
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  record    Record   @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  media     Media    @relation(fields: [mediaId], references: [id], onDelete: Restrict)
+
+  @@id([recordId, mediaId])
+  @@unique([recordId, sortOrder])
+  @@index([mediaId])
+  @@map("record_media")
 }
 
 model BabyMember {

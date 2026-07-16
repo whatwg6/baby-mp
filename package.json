@@ -22,10 +22,12 @@
     "test": "pnpm -r --if-present test",
     "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "verify:m2:api": "scripts/verify-m2-api.sh",
+    "verify:m3:api": "scripts/verify-m3-api.sh",
     "db:generate": "pnpm --filter @baby-mp/api prisma:generate",
     "db:migrate": "pnpm --filter @baby-mp/api prisma:migrate",
     "db:deploy": "pnpm --filter @baby-mp/api prisma:deploy",
-    "openapi:generate": "pnpm --filter @baby-mp/api openapi:generate"
+    "openapi:generate": "pnpm --filter @baby-mp/api openapi:generate",
+    "media:cleanup": "pnpm --filter @baby-mp/api media:cleanup"
   },
   "devDependencies": {
     "@eslint/js": "9.31.0",

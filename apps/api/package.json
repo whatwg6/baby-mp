@@ -9,11 +9,14 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "openapi:generate": "tsx src/openapi/generate-openapi.ts",
+    "media:cleanup": "tsx src/media/cleanup-media.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1088.0",
+    "@aws-sdk/s3-request-presigner": "^3.1088.0",
     "@baby-mp/contracts": "workspace:*",
     "@nestjs/common": "11.1.5",
     "@nestjs/config": "4.0.2",
@@ -25,6 +28,7 @@
     "class-validator": "0.14.2",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
+    "sharp": "^0.35.3",
     "zod": "3.25.76"
   },
   "devDependencies": {

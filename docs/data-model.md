@@ -213,7 +213,7 @@ users 1 ── N audit_logs
 | --- | --- | --- | --- |
 | `id` | uuid | PK | 媒体 ID |
 | `owner_user_id` | uuid | FK users, not null | 上传者 |
-| `baby_id` | uuid | FK babies, nullable | 所属宝宝上下文 |
+| `baby_id` | uuid | FK babies, nullable | 所属宝宝上下文；M3 宝宝域上传强制非空，nullable 仅为后续非宝宝头像预留 |
 | `storage_provider` | varchar(32) | not null | 存储提供商 |
 | `bucket` | varchar(128) | not null | 存储桶 |
 | `object_key` | varchar(512) | not null, unique | 私有对象键 |
@@ -336,7 +336,7 @@ users 1 ── N audit_logs
 ## 8. 数据生命周期建议
 
 - 成长记录软删除后保留 30 天再清理，最终期限需写入隐私政策。
-- 未完成或未关联媒体建议 24 小时后清理。
+- 未完成或未关联媒体在 24 小时后进入幂等清理；与软删除记录仍有关联的媒体至少保留 30 天，不按孤儿规则提前物理删除。
 - 导出包建议 7 天后失效并删除。
 - 已撤销或过期邀请可保留最小审计信息，原始令牌从不落库。
 - 运行日志、审计日志和业务数据使用不同保留期限。

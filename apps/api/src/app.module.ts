@@ -15,6 +15,8 @@ import { AuthModule } from './auth/auth.module'
 import { BabiesModule } from './babies/babies.module'
 import { DatabaseModule } from './database/database.module'
 import { HealthModule } from './health/health.module'
+import { MediaModule } from './media/media.module'
+import { RecordsModule } from './records/records.module'
 
 @Module({
   imports: [
@@ -26,6 +28,8 @@ import { HealthModule } from './health/health.module'
     DatabaseModule,
     AuthModule,
     BabiesModule,
+    MediaModule,
+    RecordsModule,
     HealthModule,
   ],
   providers: [

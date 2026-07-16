@@ -18,6 +18,9 @@ export const apiErrorCodeSchema = z.enum([
   'VERSION_CONFLICT',
   'IDEMPOTENCY_CONFLICT',
   'CONFLICT',
+  'UPLOAD_INCOMPLETE',
+  'UPLOAD_TOO_LARGE',
+  'UNSUPPORTED_MEDIA_TYPE',
   'INTERNAL_ERROR',
 ])
 
