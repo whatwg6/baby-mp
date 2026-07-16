@@ -1,6 +1,502 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/api/v1/auth/platform-login": {
+      "post": {
+        "operationId": "AuthController_platformLogin",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlatformLoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Authenticated session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid platform or credential.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Platform credential rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/mock-login": {
+      "post": {
+        "operationId": "AuthController_mockLogin",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MockLoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Authenticated local test session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid mock login input.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Mock login is disabled in this environment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "operationId": "AuthController_refresh",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Rotated authenticated session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid refresh request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Refresh token is invalid, expired, or already rotated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "AuthController_logout",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Session revoked."
+          },
+          "400": {
+            "description": "Invalid logout request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "operationId": "AuthController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Current active user.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentUserResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Access token is missing or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/babies": {
+      "get": {
+        "operationId": "BabiesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "All babies with an active membership.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BabyListResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Access token is missing or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "babies"
+        ]
+      },
+      "post": {
+        "operationId": "BabiesController_create",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "UUID identifying this create operation.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBabyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Baby and admin membership created atomically.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BabyResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid baby or idempotency key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Access token is missing or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key was reused with a different request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "babies"
+        ]
+      }
+    },
+    "/api/v1/babies/{babyId}": {
+      "get": {
+        "operationId": "BabiesController_get",
+        "parameters": [
+          {
+            "name": "babyId",
+            "required": true,
+            "in": "path",
+            "description": "Baby identifier.",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Baby visible to the current member.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BabyResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Baby identifier is not a UUID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Access token is missing or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Baby does not exist or is not visible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "babies"
+        ]
+      },
+      "patch": {
+        "operationId": "BabiesController_update",
+        "parameters": [
+          {
+            "name": "babyId",
+            "required": true,
+            "in": "path",
+            "description": "Baby identifier.",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBabyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated baby.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BabyResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Baby identifier or update input is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Access token is missing or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Only an active admin may update the baby.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Baby does not exist or is not visible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The supplied optimistic version is stale.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "babies"
+        ]
+      }
+    },
     "/api/v1/health": {
       "get": {
         "operationId": "HealthController_getHealth",
@@ -64,6 +560,423 @@
         "type": "http"
       }
     },
-    "schemas": {}
+    "schemas": {
+      "PlatformLoginDto": {
+        "type": "object",
+        "properties": {
+          "platform": {
+            "type": "string",
+            "enum": [
+              "wechat_mini",
+              "alipay_mini",
+              "douyin_mini",
+              "h5"
+            ]
+          },
+          "code": {
+            "type": "string",
+            "description": "Temporary platform credential",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "platform",
+          "code"
+        ]
+      },
+      "UserSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string",
+            "nullable": true,
+            "example": "测试妈妈"
+          },
+          "avatarUrl": {
+            "type": "string",
+            "format": "uri",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "avatarUrl"
+        ]
+      },
+      "AuthSessionDto": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "writeOnly": true
+          },
+          "accessTokenExpiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "refreshToken": {
+            "type": "string",
+            "writeOnly": true
+          },
+          "refreshTokenExpiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserSummaryDto"
+          }
+        },
+        "required": [
+          "accessToken",
+          "accessTokenExpiresAt",
+          "refreshToken",
+          "refreshTokenExpiresAt",
+          "user"
+        ]
+      },
+      "AuthSessionResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AuthSessionDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ApiErrorDetailDto": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "example": "birthDate"
+          },
+          "reason": {
+            "type": "string",
+            "example": "must be a valid date"
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "ApiErrorDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "AUTH_REQUIRED",
+              "REFRESH_TOKEN_INVALID",
+              "FORBIDDEN",
+              "RESOURCE_NOT_FOUND",
+              "VALIDATION_FAILED",
+              "VERSION_CONFLICT",
+              "IDEMPOTENCY_CONFLICT",
+              "CONFLICT",
+              "INTERNAL_ERROR"
+            ],
+            "example": "VALIDATION_FAILED"
+          },
+          "message": {
+            "type": "string",
+            "example": "提交内容有误"
+          },
+          "requestId": {
+            "type": "string",
+            "example": "req_0198f76a-cd42-7000-8000-000000000001"
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApiErrorDetailDto"
+            }
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "requestId"
+        ]
+      },
+      "ApiErrorResponseDto": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ApiErrorDto"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "MockLoginDto": {
+        "type": "object",
+        "properties": {
+          "mockUserKey": {
+            "type": "string",
+            "example": "parent-a"
+          },
+          "displayName": {
+            "type": "string",
+            "maxLength": 80
+          }
+        },
+        "required": [
+          "mockUserKey"
+        ]
+      },
+      "RefreshDto": {
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "refreshToken"
+        ]
+      },
+      "CurrentUserDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string",
+            "nullable": true,
+            "example": "测试妈妈"
+          },
+          "avatarUrl": {
+            "type": "string",
+            "format": "uri",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active"
+            ],
+            "example": "active"
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "avatarUrl",
+          "status"
+        ]
+      },
+      "CurrentUserResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CurrentUserDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "BabyDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "gender": {
+            "type": "string",
+            "enum": [
+              "male",
+              "female",
+              "unspecified"
+            ]
+          },
+          "birthDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2025-12-01"
+          },
+          "birthTime": {
+            "type": "string",
+            "nullable": true,
+            "example": "08:30"
+          },
+          "birthHeightCm": {
+            "type": "number",
+            "nullable": true,
+            "example": 50.2
+          },
+          "birthWeightKg": {
+            "type": "number",
+            "nullable": true,
+            "example": 3.42
+          },
+          "avatarUrl": {
+            "type": "string",
+            "format": "uri",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "editor",
+              "viewer"
+            ]
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "gender",
+          "birthDate",
+          "birthTime",
+          "birthHeightCm",
+          "birthWeightKg",
+          "avatarUrl",
+          "role",
+          "version",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "BabyListResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BabyDto"
+            }
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "CreateBabyDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "gender": {
+            "type": "string",
+            "enum": [
+              "male",
+              "female",
+              "unspecified"
+            ]
+          },
+          "birthDate": {
+            "type": "string",
+            "example": "2025-12-01"
+          },
+          "birthTime": {
+            "type": "string",
+            "example": "08:30"
+          },
+          "birthHeightCm": {
+            "type": "number",
+            "minimum": 20,
+            "maximum": 250
+          },
+          "birthWeightKg": {
+            "type": "number",
+            "minimum": 0.2,
+            "maximum": 300
+          }
+        },
+        "required": [
+          "name",
+          "gender",
+          "birthDate"
+        ]
+      },
+      "BabyResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BabyDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdateBabyDto": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "gender": {
+            "type": "string",
+            "enum": [
+              "male",
+              "female",
+              "unspecified"
+            ]
+          },
+          "birthDate": {
+            "type": "string",
+            "example": "2025-12-01"
+          },
+          "birthTime": {
+            "type": "string",
+            "example": "08:30",
+            "nullable": true
+          },
+          "birthHeightCm": {
+            "type": "number",
+            "minimum": 20,
+            "maximum": 250,
+            "nullable": true
+          },
+          "birthWeightKg": {
+            "type": "number",
+            "minimum": 0.2,
+            "maximum": 300,
+            "nullable": true
+          }
+        },
+        "required": [
+          "version"
+        ]
+      }
+    }
   }
 }

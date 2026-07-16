@@ -1,63 +1,62 @@
-import { Text, View } from '@tarojs/components'
-import { useCallback, useEffect, useState } from 'react'
+import { Button, Image, Text, View } from '@tarojs/components'
+import { useState } from 'react'
 
 import { PageState } from '../../components/PageState'
-import { ApiClientError } from '../../services/api-error'
-import { fetchHealth } from '../../services/health'
+import { useProtectedPage } from '../../features/auth/use-protected-page'
+import { formatBabyAge } from '../../features/babies/validation'
+import { loadBabies, selectBaby, useBabyState } from '../../features/babies/store'
+import { platform } from '../../platform'
 
 import './index.scss'
 
-type HealthViewState =
-  | { kind: 'loading' }
-  | { kind: 'success'; version: string }
-  | { kind: 'error'; message: string; requestId?: string }
+const roleLabels = { admin: '管理员', editor: '可编辑成员', viewer: '只读成员' }
 
 export default function HomePage() {
-  const [state, setState] = useState<HealthViewState>({ kind: 'loading' })
+  const ready = useProtectedPage()
+  const state = useBabyState()
+  const [switcherOpen, setSwitcherOpen] = useState(false)
 
-  const loadHealth = useCallback(async () => {
-    setState({ kind: 'loading' })
-    try {
-      const response = await fetchHealth()
-      setState({ kind: 'success', version: response.data.version })
-    } catch (error) {
-      const clientError = error instanceof ApiClientError ? error : undefined
-      setState({
-        kind: 'error',
-        message: clientError?.message ?? '加载失败，请稍后重试',
-        requestId: clientError?.requestId,
-      })
-    }
-  }, [])
+  if (!ready || state.status === 'loading' || state.status === 'idle') {
+    return <View className="page-shell"><PageState kind="loading" title="正在准备宝宝空间" /></View>
+  }
+  if (state.status === 'error') return <View className="page-shell"><PageState kind="error" description={state.error} actionLabel="重新加载" onAction={() => void loadBabies()} /></View>
+  if (!state.current) return <View className="page-shell"><View className="page-heading"><Text className="page-title">宝宝成长记</Text></View>
+    <PageState kind="empty" title="先创建宝宝档案" description="创建档案后，就可以和家人一起记录成长。收到家庭邀请时也可以通过邀请加入。"
+      actionLabel="创建宝宝" onAction={() => void platform.navigateTo('/pages/babies/create')} /></View>
 
-  useEffect(() => {
-    void loadHealth()
-  }, [loadHealth])
-
-  return (
-    <View className="page-shell">
-      <View className="page-heading">
-        <Text className="page-title">宝宝成长记</Text>
-        <Text className="page-description">珍藏成长点滴，与家人安心分享。</Text>
-      </View>
-
-      {state.kind === 'loading' ? <PageState kind="loading" title="正在连接本地服务" /> : null}
-      {state.kind === 'error' ? (
-        <PageState
-          kind="error"
-          title="暂时无法连接服务"
-          description={`${state.message}${state.requestId ? `（请求编号：${state.requestId}）` : ''}`}
-          actionLabel="重新连接"
-          onAction={() => void loadHealth()}
-        />
-      ) : null}
-      {state.kind === 'success' ? (
-        <View className="surface-card health-card">
-          <View className="health-card__badge">服务已连接</View>
-          <Text className="health-card__title">工程基础运行正常</Text>
-          <Text className="health-card__description">API 版本 {state.version}</Text>
-        </View>
-      ) : null}
+  const baby = state.current
+  const canEdit = baby.role !== 'viewer'
+  return <View className="page-shell">
+    <View className="baby-header-card" onClick={() => setSwitcherOpen(true)}>
+      {baby.avatarUrl ? <Image className="baby-header-card__avatar" src={baby.avatarUrl} mode="aspectFill" /> : <View className="baby-header-card__avatar baby-header-card__avatar--fallback">宝</View>}
+      <View className="baby-header-card__body"><Text className="baby-header-card__name">{baby.name}</Text>
+        <Text className="baby-header-card__meta">{formatBabyAge(baby.birthDate)} · {roleLabels[baby.role]}</Text></View>
+      <Text className="baby-header-card__arrow">⌄</Text>
     </View>
-  )
+    {canEdit ? <View className="home-section"><Text className="section-title">快速记录</Text><View className="quick-actions">
+      {['图文', '测量', '里程碑'].map((label) => <Button key={label} onClick={() => void platform.showToast('记录功能将在下一里程碑开放')}>{label}</Button>)}
+    </View></View> : null}
+    <View className="home-section"><Text className="section-title">最近记录</Text>
+      <View className="surface-card first-record"><Text className="first-record__title">记录宝宝的第一个成长瞬间</Text>
+        <Text className="first-record__description">这里会展示最近的家庭成长记录。</Text>
+        {canEdit ? <Button className="secondary-button" onClick={() => void platform.showToast('记录功能将在下一里程碑开放')}>添加第一条记录</Button> : null}
+      </View>
+    </View>
+    {switcherOpen ? <View className="switcher-overlay" onClick={() => setSwitcherOpen(false)}><View className="switcher-panel" onClick={(event) => event.stopPropagation()}>
+      <Text className="switcher-panel__title">切换宝宝</Text>
+      {state.babies.map((item) => <View className={`switcher-item${item.id === baby.id ? ' is-current' : ''}`} key={item.id}
+        onClick={() => void selectBaby(item.id).then(() => setSwitcherOpen(false))}>
+        <View><Text className="switcher-item__name">{item.name}</Text><Text className="switcher-item__role">{roleLabels[item.role]}</Text></View>
+        <Text>{item.id === baby.id ? '✓' : ''}</Text>
+      </View>)}
+      <Button className="secondary-button" onClick={() => {
+        setSwitcherOpen(false)
+        void platform.navigateTo('/pages/babies/create')
+      }}>创建宝宝</Button>
+      <Button className="link-button" onClick={() => {
+        setSwitcherOpen(false)
+        void platform.navigateTo('/pages/babies/index')
+      }}>管理宝宝档案</Button>
+    </View></View> : null}
+  </View>
 }

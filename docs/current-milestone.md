@@ -2,204 +2,115 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 当前里程碑 | M1：工程基础 |
-| 状态 | Complete |
-| 负责人模式 | 一个 Lead Agent，建立共享基线后协调前后端并行 |
-| 更新日期 | 2026-07-16 |
+| 当前里程碑 | M3：成长记录、媒体与时间轴 |
+| 状态 | In Progress |
+| 负责人模式 | Lead Agent 统一 Prisma/契约顺序，API 与客户端并行，测试工作流独立验收 |
+| 更新日期 | 2026-07-17 |
 
-## 1. 本阶段目标
+## 1. 上一阶段结论
 
-建立可重复启动、可验证的本地工程基础，让后续业务开发可以围绕稳定的客户端、API、共享契约、数据库和对象存储进行。
+M2 已完成并通过：60 项自动化测试、完整构建、真实 PostgreSQL/API 验收、Playwright H5 登录/多宝宝/失效会话流程，以及微信开发者工具适用检查。正式微信 `code2session`、HTTPS 合法域名和真机账号属于预发布外部条件，不阻塞 M3 本地实现。
 
-本阶段完成后必须打通：
+## 2. 本阶段目标
+
+交付 MVP 的核心内容闭环：
 
 ```text
-Taro 客户端
-→ 本地 NestJS API
-→ GET /api/v1/health
-→ 返回标准成功响应
+选择当前宝宝
+→ 私有图片上传并确认
+→ 创建图文 / 测量 / 里程碑记录
+→ 混合时间轴游标分页与筛选
+→ 查看详情、编辑、重排媒体、软删除
+→ 重试和切换宝宝时保持幂等与数据隔离
 ```
 
-## 2. Lead Agent 职责
+M3 不实现成长趋势图、家庭邀请、导出或生产部署。
 
-Lead Agent 负责：
+## 3. 实施范围
 
-- 阅读根目录 `AGENTS.md` 和必读文档。
-- 检查现有文件及未提交改动。
-- 制定并维护实施计划。
-- 决定是否使用子 Agent，并为其划定互不重叠的文件范围。
-- 统一集成、解决冲突和执行验证。
-- 更新实现状态和里程碑状态。
+### 3.1 数据与契约
 
-用户不负责给子 Agent 分配模块或同步上下文。
+- 创建 `media`、`records`、`measurement_records`、`record_media` 及必要索引和约束。
+- 使用 `records` 统一主表，图文、测量和里程碑按契约存储类型字段/详情。
+- 所有记录和媒体带 `baby_id`；业务删除使用 `deleted_at`，更新使用 `version`。
+- 在共享 contracts 和 OpenAPI 中定义媒体、记录详情、时间轴、游标和错误响应。
+- 游标同时编码 `occurredAt` 和 `id`，保证稳定倒序分页。
 
-## 3. 推荐并行执行方式
+### 3.2 服务端
 
-M1 可以并行，但必须先由 Lead Agent 完成一个很小的共享基线。
+- 实现私有对象存储上传凭证、上传完成确认和短期访问地址。
+- 校验 MIME、大小、对象存在性、媒体状态及宝宝归属；不得暴露 object key。
+- 实现三类记录创建、详情、更新和软删除。
+- 创建记录与媒体关联处于同一事务；写接口支持幂等和乐观版本。
+- 实现时间轴类型筛选、limit 校验和稳定游标分页。
+- admin/editor 可创建；editor 只可编辑/删除自己的记录，admin 可管理宝宝内记录，viewer 只读。
+- 每次请求实时查询有效成员关系，资源 ID 必须先反查 babyId 后授权。
+- 建立未关联媒体的安全清理入口/任务，物理删除失败可重试。
 
-### 3.1 步骤 A：共享基线（短暂串行）
+### 3.3 客户端
 
-Lead Agent 先完成：
+- 实现记录类型选择和图文、测量、里程碑表单。
+- 实现选图、压缩适配边界、排序、上传进度、失败重试和提交锁。
+- 上传失败不得清空表单；重复点击不得重复创建记录。
+- 实现时间轴混合列表、类型筛选、下拉刷新、游标加载和空/错状态。
+- 实现记录详情、编辑、媒体重排和删除确认。
+- 切换宝宝时清除或隔离旧宝宝记录缓存和在途响应。
+- 操作入口按角色与创建者显示，但服务端权限仍为最终边界。
 
-- 根 `package.json` 和 `pnpm-workspace.yaml`。
-- Node、pnpm 和 TypeScript 基础版本。
-- `apps/client`、`apps/api`、`packages/contracts` 空目录或脚手架边界。
-- health contract 和通用响应结构。
-- 子 Agent 的文件所有权。
+### 3.4 测试与安全
 
-这一步只建立边界，不应把整个 M1 都实现完。
+- 覆盖 `REC-001` 至 `REC-013`、`TIME-001` 至 `TIME-006`、`MEDIA-001` 至 `MEDIA-008`。
+- 覆盖 ACL-001/002/003/005/006 及成员移除后的实时失权。
+- 覆盖跨宝宝 mediaId/recordId、软删除后访问、并发幂等、事务回滚和版本冲突。
+- 验证签名 URL 短时有效、bucket 保持私有，日志不包含正文、宝宝姓名、object key 或签名 URL。
+- 建立 H5 真实 API 链路：创建三类记录 → 时间轴筛选/分页 → 编辑 → 删除。
+- 微信开发者工具验证页面与平台适配；拍照/选图及真实上传在具备真机条件时执行并记录。
 
-### 3.2 步骤 B：前后端并行
+## 4. 文件所有权
 
-共享基线稳定后，Lead Agent 可以同时启动：
+| 区域 | 所有者 |
+| --- | --- |
+| Prisma schema/迁移、`apps/api/src/media/**`、`records/**`、`timeline/**` | API 工作流（单一迁移所有者） |
+| `apps/client/src/features/media/**`、`records/**`、时间轴/详情/表单页面 | 客户端工作流 |
+| `packages/contracts/**` 公共出口、根配置、状态文档、最终集成 | Lead Agent |
+| REC/TIME/MEDIA/ACL 测试与安全审查 | 测试/审查工作流（生产实现默认只读） |
 
-| 工作流 | 文件范围 | 交付结果 |
-| --- | --- | --- |
-| 前端 Agent | `apps/client/**` | Taro 页面壳、API client、health 调用及界面状态 |
-| 后端 Agent | `apps/api/**` | NestJS、health endpoint、配置、日志、错误处理及 OpenAPI 基础 |
-| Lead/基础设施 | 根配置、`packages/contracts/**`、Docker、CI | PostgreSQL、MinIO、共享配置和验证命令 |
+API 工作流必须先落共享契约与迁移，再允许客户端绑定真实接口。不得由多个工作流同时编辑 Prisma schema、根路由或 contracts 公共出口。
 
-前端可以根据已经固定的 health contract 开发，不必等待后端完成。后端不得修改客户端目录，前端不得自行改变 API contract。
-
-### 3.3 步骤 C：集成（串行收口）
-
-子 Agent 完成后，由 Lead Agent：
-
-1. 审查并合并前后端结果。
-2. 解决依赖和配置差异。
-3. 启动本地 API 和客户端，执行真实 health 调用。
-4. 运行全部验证命令。
-5. 更新实现状态和里程碑状态。
-
-子 Agent 各自完成不等于 M1 完成，集成验证必须由 Lead Agent 负责。
-
-## 4. 本阶段范围
-
-### 4.1 仓库与工具链
-
-- 初始化 pnpm workspace。
-- 项目级 pnpm registry 使用国内镜像 `https://registry.npmmirror.com/`。
-- 记录并固定支持的 Node.js 和 pnpm 版本。
-- 创建根级 `dev`、`build`、`lint`、`typecheck`、`test`、`verify` 命令。
-- 配置共享 TypeScript、ESLint 和测试基础。
-- 提供根目录项目 README 和 `.env.example`。
-
-### 4.2 客户端骨架
-
-- 创建 `apps/client`：Taro 4、React、TypeScript。
-- 配置微信小程序和 H5 的基础构建。
-- 建立 `pages`、`features`、`services`、`platform`、`stores`、`styles` 目录边界。
-- 建立四个主页面的路由壳：首页、时间轴、成长、我的。
-- 建立 API client 基础和标准错误映射。
-- 从客户端调用本地健康检查并展示成功、加载和错误状态。
-
-### 4.3 API 骨架
-
-- 创建 `apps/api`：NestJS、TypeScript。
-- 建立 `/api/v1/health`。
-- 建立请求 ID、结构化日志、配置校验和统一错误响应。
-- 建立认证守卫和宝宝成员守卫的接口/骨架，不实现完整认证业务。
-- 配置 OpenAPI 生成基础。
-
-### 4.4 共享契约
-
-- 创建 `packages/contracts`。
-- 定义标准成功响应、错误响应、错误码基础和 health contract。
-- 客户端不得直接引用 Prisma 类型。
-
-### 4.5 本地基础设施
-
-- 使用 Docker Compose 提供 PostgreSQL。
-- 使用 Docker Compose 提供 MinIO 和私有本地 bucket。
-- 初始化 Prisma 配置、基础 schema 位置和迁移命令。
-- 数据库和 MinIO 配置只通过环境变量提供。
-- 暂不创建完整业务表；M2 按 `data-model.md` 实现用户、宝宝和成员模型。
-
-### 4.6 质量与 CI
-
-- 配置单元测试基础。
-- 至少测试 health contract 和 API health endpoint。
-- 配置 CI 执行 lint、typecheck、test 和 build。
-- 提供从全新环境启动本地依赖和工程的说明。
-
-## 5. 明确不在本阶段
-
-- 真实微信登录和模拟登录业务。
-- 用户、宝宝和家庭成员完整模型。
-- 成长记录、媒体上传和时间轴。
-- 成长图表。
-- 家庭邀请。
-- 数据导出。
-- 云服务商资源、生产域名和正式部署。
-- 最终品牌视觉。
-
-如脚手架需要占位页面或接口，只能提供无业务逻辑的壳，不得提前扩展范围。
-
-## 6. 文件所有权
-
-本阶段由 Lead Agent 统一拥有以下共享区域：
-
-- 根 `package.json`、workspace 和 lockfile。
-- 根级 TypeScript、ESLint、测试和 CI 配置。
-- `docker-compose.yml` 和 `.env.example`。
-- Prisma schema 入口和初始迁移策略。
-- Taro app 配置和全局路由。
-- `packages/contracts` 公共出口。
-
-前端 Agent 只修改 `apps/client/**`，后端 Agent 只修改 `apps/api/**`。所有共享文件由 Lead Agent 修改或统一合并。
-
-## 7. 验证命令
-
-实现 Agent 应以最终创建的实际命令为准，并保持以下用户体验：
+## 5. 验证命令
 
 ```bash
-pnpm install
-docker compose up -d
-pnpm dev
+pnpm db:generate
+pnpm db:deploy
+pnpm openapi:generate
 pnpm verify
 ```
 
-至少验证：
+并执行：
 
-- `pnpm lint`
-- `pnpm typecheck`
-- `pnpm test`
-- `pnpm build`
-- `pnpm verify`
-- Docker Compose 服务健康状态。
-- 客户端到 `/api/v1/health` 的真实调用。
+- PostgreSQL/MinIO Compose 健康与 bucket 私有性检查。
+- M3 API 集成、权限矩阵、幂等/事务与对象存储测试。
+- H5 真实 API 成长记录全生命周期与多宝宝隔离。
+- 微信开发者工具适用链路；真机条件不足时明确记录外部条件。
 
-若环境无法执行 Docker 或微信构建，必须记录具体原因，同时完成所有可执行验证；不能用未经验证的声明代替结果。
+## 6. 验收清单
 
-## 8. 验收清单
+- [ ] M3 迁移可在 M2 数据库和空数据库前进执行。
+- [ ] 私有上传、完成确认、短期访问和未关联媒体清理可验证。
+- [ ] MIME、大小、对象状态和跨宝宝媒体校验符合契约。
+- [ ] 图文、测量和里程碑均可创建、查看、编辑和软删除。
+- [ ] 记录与媒体关联事务原子，重复提交不会产生重复记录。
+- [ ] admin/editor/viewer 与记录创建者权限矩阵通过。
+- [ ] 时间轴混合排序、筛选、游标分页和新增数据稳定性通过。
+- [ ] 删除/编辑记录后时间轴、详情和媒体关联保持一致。
+- [ ] 客户端上传失败保留表单，重试和切换宝宝不串数据。
+- [ ] 跨宝宝 mediaId/recordId 和 outsider 请求不泄漏资源存在性。
+- [ ] 对象 bucket 私有，签名地址短时有效且日志不记录敏感内容。
+- [ ] OpenAPI、共享 contracts、迁移与实现一致。
+- [ ] `pnpm verify` 和 M3 真实 API 验收通过。
+- [ ] H5 完整闭环通过，微信开发者工具完成适用验证。
+- [ ] `implementation-status.md` 记录实际证据、限制和 M4/M5 readiness。
 
-- [x] 全新环境可按 README 安装依赖。
-- [x] PostgreSQL 和 MinIO 可由 Docker Compose 启动。
-- [x] API 可以启动并返回标准 health 响应。
-- [x] Taro H5 构建成功。
-- [x] 微信小程序构建成功，或记录明确的外部环境阻塞。
-- [x] 客户端真实调用本地 health API。
-- [x] lint、typecheck、test、build、verify 通过。
-- [x] `.env.example` 不含真实密钥。
-- [x] staging/production 的配置结构不会默认启用 mock auth。
-- [x] 根 README 包含本地启动、验证和常见问题。
-- [x] `implementation-status.md` 已更新。
+## 7. 完成后的下一阶段
 
-## 9. 完成后的下一阶段
-
-M2 的第一条纵向业务链路：
-
-```text
-本地模拟登录
-→ 创建用户
-→ 创建宝宝和 admin 成员关系
-→ 进入首页空状态
-→ 重启后恢复会话与当前宝宝
-```
-
-M1 完成后，Lead Agent 应报告 M2 已具备开工条件，但除非用户要求继续开发，否则不自动开始 M2。
-
-## 10. 完成后维护记录
-
-- 2026-07-16：修复普通 `pnpm dev` 未注入客户端 API 地址时的局域网 H5 health 链路；补充开发模式地址推导、local-only 私网 CORS 和重试回归测试。`pnpm verify`（19 个测试）及 `192.168.0.140` 浏览器实测通过，M1 状态保持 Complete。
-- 2026-07-16：修复小程序开发构建空 API 地址和开发者工具本地域名校验；新增 `pnpm dev:weapp`、私网 IPv4 自动选择及开发项目配置复制。微信开发者工具模拟器 health 链路通过，完整验证增至 22 个测试，M1 状态保持 Complete。
+M3 完成后，M4 成长数据和 M5 家庭协作依赖均满足，可按 `agent-workstreams.md` 并行推进；用户已授权继续整个 MVP。

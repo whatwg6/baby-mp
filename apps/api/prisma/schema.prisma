@@ -7,6 +7,159 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// M1 intentionally contains no business models. Users, babies, and
-// memberships are introduced together in M2 so their transactional and
-// authorization invariants can be reviewed as one migration.
+enum PlatformType {
+  wechat_mini
+  alipay_mini
+  douyin_mini
+  h5
+
+  @@map("platform_type")
+}
+
+enum UserStatus {
+  active
+  disabled
+  deleted
+
+  @@map("user_status")
+}
+
+enum BabyGender {
+  male
+  female
+  unspecified
+
+  @@map("baby_gender")
+}
+
+enum MemberRole {
+  admin
+  editor
+  viewer
+
+  @@map("member_role")
+}
+
+enum MemberStatus {
+  active
+  removed
+
+  @@map("member_status")
+}
+
+model User {
+  id           String             @id @default(uuid()) @db.Uuid
+  displayName  String?            @map("display_name") @db.VarChar(80)
+  avatarMediaId String?           @map("avatar_media_id") @db.Uuid
+  status       UserStatus         @default(active)
+  lastLoginAt  DateTime?          @map("last_login_at") @db.Timestamptz(3)
+  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt    DateTime?          @map("deleted_at") @db.Timestamptz(3)
+  identities   PlatformIdentity[]
+  sessions     RefreshSession[]
+  memberships  BabyMember[]       @relation("MemberUser")
+  createdBabies Baby[]             @relation("BabyCreator")
+  invitedMemberships BabyMember[]  @relation("MemberInviter")
+  removedMemberships BabyMember[]  @relation("MemberRemover")
+  idempotencyKeys IdempotencyKey[]
+
+  @@map("users")
+}
+
+model PlatformIdentity {
+  id           String       @id @default(uuid()) @db.Uuid
+  userId       String       @map("user_id") @db.Uuid
+  platform     PlatformType
+  appId        String       @map("app_id") @db.VarChar(128)
+  subject      String       @db.VarChar(255)
+  unionSubject String?      @map("union_subject") @db.VarChar(255)
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([platform, appId, subject])
+  @@index([userId])
+  @@map("platform_identities")
+}
+
+model RefreshSession {
+  id                  String    @id @default(uuid()) @db.Uuid
+  userId              String    @map("user_id") @db.Uuid
+  familyId            String    @map("family_id") @db.Uuid
+  tokenHash           String    @unique @map("token_hash") @db.Char(64)
+  platform             PlatformType
+  expiresAt            DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt            DateTime? @map("revoked_at") @db.Timestamptz(3)
+  revokeReason         String?   @map("revoke_reason") @db.VarChar(40)
+  replacedBySessionId  String?   @unique @map("replaced_by_session_id") @db.Uuid
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replacedBy           RefreshSession? @relation("SessionRotation", fields: [replacedBySessionId], references: [id], onDelete: SetNull)
+  replaces             RefreshSession? @relation("SessionRotation")
+
+  @@index([userId, revokedAt])
+  @@index([familyId])
+  @@map("refresh_sessions")
+}
+
+model Baby {
+  id              String       @id @default(uuid()) @db.Uuid
+  name            String       @db.VarChar(40)
+  gender          BabyGender
+  birthDate       DateTime     @map("birth_date") @db.Date
+  birthTime       DateTime?    @map("birth_time") @db.Time(0)
+  birthHeightCm   Decimal?     @map("birth_height_cm") @db.Decimal(5, 2)
+  birthWeightKg   Decimal?     @map("birth_weight_kg") @db.Decimal(6, 3)
+  avatarMediaId   String?      @map("avatar_media_id") @db.Uuid
+  createdBy       String       @map("created_by") @db.Uuid
+  version         Int          @default(1)
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt       DateTime?    @map("deleted_at") @db.Timestamptz(3)
+  creator         User         @relation("BabyCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+  members         BabyMember[]
+
+  @@index([createdBy])
+  @@map("babies")
+}
+
+model BabyMember {
+  id          String       @id @default(uuid()) @db.Uuid
+  babyId      String       @map("baby_id") @db.Uuid
+  userId      String       @map("user_id") @db.Uuid
+  role        MemberRole
+  status      MemberStatus @default(active)
+  joinedAt    DateTime     @default(now()) @map("joined_at") @db.Timestamptz(3)
+  invitedBy   String?      @map("invited_by") @db.Uuid
+  removedAt   DateTime?    @map("removed_at") @db.Timestamptz(3)
+  removedBy   String?      @map("removed_by") @db.Uuid
+  version     Int          @default(1)
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  baby        Baby         @relation(fields: [babyId], references: [id], onDelete: Cascade)
+  user        User         @relation("MemberUser", fields: [userId], references: [id], onDelete: Cascade)
+  inviter     User?        @relation("MemberInviter", fields: [invitedBy], references: [id], onDelete: SetNull)
+  remover     User?        @relation("MemberRemover", fields: [removedBy], references: [id], onDelete: SetNull)
+
+  @@unique([babyId, userId])
+  @@index([userId, status])
+  @@index([babyId, status])
+  @@map("baby_members")
+}
+
+model IdempotencyKey {
+  userId       String   @map("user_id") @db.Uuid
+  key          String   @db.VarChar(128)
+  operation    String   @db.VarChar(80)
+  requestHash  String   @map("request_hash") @db.Char(64)
+  responseCode Int?     @map("response_code")
+  responseBody Json?    @map("response_body")
+  expiresAt    DateTime @map("expires_at") @db.Timestamptz(3)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, operation, key])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
+}

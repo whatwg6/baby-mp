@@ -57,4 +57,13 @@ describe('validateEnvironment', () => {
       }),
     ).toThrow(/CORS_ORIGINS must list explicit origins/)
   })
+
+  it('rejects an invalid business time zone', () => {
+    expect(() =>
+      validateEnvironment({
+        ...productionEnvironment,
+        BUSINESS_TIME_ZONE: 'not-a-time-zone',
+      }),
+    ).toThrow(/valid IANA time zone/)
+  })
 })

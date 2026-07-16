@@ -28,6 +28,22 @@ export interface ApiRequestOptions<T> {
   body?: unknown
   accessToken?: string
   idempotencyKey?: string
+  /** Public endpoints such as login and refresh must not receive an old token. */
+  skipAuth?: boolean
+  /** Refresh itself must never recursively trigger another refresh. */
+  skipRefresh?: boolean
+}
+
+export interface AuthSessionAdapter {
+  getAccessToken: () => string | undefined
+  refresh: () => Promise<string | undefined>
+  onAuthFailure: () => Promise<void> | void
+}
+
+let authSessionAdapter: AuthSessionAdapter | undefined
+
+export function configureApiAuth(adapter: AuthSessionAdapter | undefined) {
+  authSessionAdapter = adapter
 }
 
 const DEFAULT_TIMEOUT_MS = 10_000
@@ -90,20 +106,35 @@ export function createApiClient(
       body,
       accessToken,
       idempotencyKey,
+      skipAuth = false,
+      skipRefresh = false,
     }: ApiRequestOptions<T>): Promise<T> {
-      const header: Record<string, string> = { Accept: 'application/json' }
-      if (body !== undefined) header['Content-Type'] = 'application/json'
-      if (accessToken) header.Authorization = `Bearer ${accessToken}`
-      if (idempotencyKey) header['Idempotency-Key'] = idempotencyKey
-
       try {
-        const response = await transport({
-          url: `${normalizedBaseUrl}${path}`,
-          method,
-          data: body,
-          header,
-          timeout: DEFAULT_TIMEOUT_MS,
-        })
+        const send = (token?: string) => {
+          const header: Record<string, string> = { Accept: 'application/json' }
+          if (body !== undefined) header['Content-Type'] = 'application/json'
+          if (token) header.Authorization = `Bearer ${token}`
+          if (idempotencyKey) header['Idempotency-Key'] = idempotencyKey
+
+          return transport({
+            url: `${normalizedBaseUrl}${path}`,
+            method,
+            data: body,
+            header,
+            timeout: DEFAULT_TIMEOUT_MS,
+          })
+        }
+
+        const initialToken = skipAuth ? undefined : (accessToken ?? authSessionAdapter?.getAccessToken())
+        let response = await send(initialToken)
+
+        if (response.statusCode === 401 && !skipRefresh && authSessionAdapter) {
+          const refreshedToken = await authSessionAdapter.refresh()
+          if (refreshedToken) response = await send(refreshedToken)
+          if (!refreshedToken || response.statusCode === 401) {
+            await authSessionAdapter.onAuthFailure()
+          }
+        }
 
         if (response.statusCode < 200 || response.statusCode >= 300) {
           throw mapApiError(response.data, response.statusCode)

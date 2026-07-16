@@ -11,6 +11,9 @@ import { ApiExceptionFilter } from './common/http/api-exception.filter'
 import { RequestIdMiddleware } from './common/http/request-id.middleware'
 import { RequestLoggingInterceptor } from './common/http/request-logging.interceptor'
 import { validateEnvironment } from './config/environment'
+import { AuthModule } from './auth/auth.module'
+import { BabiesModule } from './babies/babies.module'
+import { DatabaseModule } from './database/database.module'
 import { HealthModule } from './health/health.module'
 
 @Module({
@@ -20,6 +23,9 @@ import { HealthModule } from './health/health.module'
       isGlobal: true,
       validate: validateEnvironment,
     }),
+    DatabaseModule,
+    AuthModule,
+    BabiesModule,
     HealthModule,
   ],
   providers: [

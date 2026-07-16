@@ -11,11 +11,13 @@ export const successResponseSchema = <T extends z.ZodTypeAny>(data: T) =>
 
 export const apiErrorCodeSchema = z.enum([
   'AUTH_REQUIRED',
+  'REFRESH_TOKEN_INVALID',
   'FORBIDDEN',
   'RESOURCE_NOT_FOUND',
   'VALIDATION_FAILED',
   'VERSION_CONFLICT',
   'IDEMPOTENCY_CONFLICT',
+  'CONFLICT',
   'INTERNAL_ERROR',
 ])
 

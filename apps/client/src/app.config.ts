@@ -1,5 +1,9 @@
 export default defineAppConfig({
   pages: [
+    'pages/auth/index',
+    'pages/babies/create',
+    'pages/babies/index',
+    'pages/babies/edit',
     'pages/home/index',
     'pages/timeline/index',
     'pages/growth/index',

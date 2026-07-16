@@ -125,7 +125,7 @@ users 1 ── N audit_logs
 | `birth_date` | date | not null | 出生日期 |
 | `birth_time` | time | nullable | 出生时间 |
 | `birth_height_cm` | numeric(5,2) | nullable | 出生身高 |
-| `birth_weight_kg` | numeric(5,3) | nullable | 出生体重 |
+| `birth_weight_kg` | numeric(6,3) | nullable | 出生体重；需容纳产品规则允许的 300 kg 上界 |
 | `avatar_media_id` | uuid | nullable, FK media | 宝宝头像 |
 | `created_by` | uuid | FK users, not null | 创建者 |
 | `version` | integer | not null, default 1 | 乐观并发版本号 |

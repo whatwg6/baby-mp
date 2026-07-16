@@ -5,10 +5,13 @@ vi.mock('@tarojs/taro', () => ({
   default: { request: vi.fn() },
 }))
 
-import { createApiClient, getApiBaseUrl, type RequestTransport } from './api-client'
+import { afterEach } from 'vitest'
+
+import { configureApiAuth, createApiClient, getApiBaseUrl, type RequestTransport } from './api-client'
 import { ApiClientError } from './api-error'
 
 describe('API client', () => {
+  afterEach(() => configureApiAuth(undefined))
   it('builds the request and validates a health response', async () => {
     const transport = vi.fn<RequestTransport>().mockResolvedValue({
       statusCode: 200,
@@ -77,5 +80,22 @@ describe('API client', () => {
     expect(() =>
       getApiBaseUrl('  ', { nodeEnv: 'development', taroEnv: 'h5' }),
     ).toThrow('客户端 API 地址未配置')
+  })
+
+  it('refreshes once after a 401 and retries with the rotated access token', async () => {
+    const transport = vi.fn<RequestTransport>()
+      .mockResolvedValueOnce({ statusCode: 401, data: { error: { code: 'AUTH_REQUIRED', message: 'expired' } } })
+      .mockResolvedValueOnce({ statusCode: 200, data: { data: { status: 'ok', version: '0.1.0' } } })
+    const refresh = vi.fn().mockResolvedValue('new-token')
+    configureApiAuth({ getAccessToken: () => 'old-token', refresh, onAuthFailure: vi.fn() })
+
+    await createApiClient('http://localhost:3000', transport).request({
+      path: '/api/v1/health', schema: healthResponseSchema,
+    })
+
+    expect(refresh).toHaveBeenCalledTimes(1)
+    expect(transport).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      header: expect.objectContaining({ Authorization: 'Bearer new-token' }),
+    }))
   })
 })

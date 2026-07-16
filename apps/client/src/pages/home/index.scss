@@ -1,30 +1,8 @@
 @use '../../styles/tokens.scss' as *;
-
-.health-card {
-  &__badge {
-    display: inline-flex;
-    padding: $space-xs $space-sm;
-    border-radius: $radius-round;
-    background: $color-primary-soft;
-    color: $color-success;
-    font-size: $font-sm;
-    font-weight: 700;
-  }
-
-  &__title,
-  &__description {
-    display: block;
-  }
-
-  &__title {
-    margin-top: $space-md;
-    font-size: $font-lg;
-    font-weight: 700;
-  }
-
-  &__description {
-    margin-top: $space-sm;
-    color: $color-text-secondary;
-    font-size: $font-sm;
-  }
-}
+.baby-header-card { display: flex; align-items: center; gap: $space-md; padding: $space-lg; border-radius: $radius-md; background: linear-gradient(135deg, #fff1e9, #fff); }
+.baby-header-card__avatar { width: 60px; height: 60px; border-radius: 50%; }
+.baby-header-card__avatar--fallback { display: flex; align-items: center; justify-content: center; background: $color-primary; color: white; font-size: 24px; font-weight: 700; }
+.baby-header-card__body { flex: 1; }.baby-header-card__name { display: block; font-size: $font-lg; font-weight: 700; }.baby-header-card__meta { display: block; margin-top: $space-xs; color: $color-text-secondary; font-size: $font-sm; }.baby-header-card__arrow { font-size: 24px; }
+.home-section { margin-top: $space-lg; }.section-title { display: block; margin-bottom: $space-md; font-weight: 700; }.quick-actions { display: flex; gap: $space-sm; }.quick-actions button { flex: 1; margin: 0; padding: $space-md $space-xs; border: 1px solid $color-border; background: $color-surface; color: $color-primary; font-size: $font-sm; }
+.first-record { text-align: center; }.first-record__title, .first-record__description { display: block; }.first-record__title { font-weight: 700; }.first-record__description { margin: $space-sm 0 $space-md; color: $color-text-secondary; font-size: $font-sm; }
+.switcher-overlay { position: fixed; z-index: 20; inset: 0; display: flex; align-items: flex-end; background: $color-overlay; }.switcher-panel { width: 100%; max-height: 70vh; padding: $space-lg $space-md calc($space-lg + env(safe-area-inset-bottom)); border-radius: $radius-md $radius-md 0 0; background: $color-surface; }.switcher-panel__title { display: block; margin-bottom: $space-md; font-size: $font-lg; font-weight: 700; }.switcher-item { display: flex; justify-content: space-between; align-items: center; padding: $space-md; border-bottom: 1px solid $color-border; }.switcher-item.is-current { color: $color-primary; }.switcher-item__name, .switcher-item__role { display: block; }.switcher-item__name { font-weight: 700; }.switcher-item__role { margin-top: $space-xs; color: $color-text-secondary; font-size: $font-sm; }

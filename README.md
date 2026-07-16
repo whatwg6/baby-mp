@@ -1,13 +1,15 @@
 # 宝宝成长记
 
-宝宝成长记是一个本地优先、云厂商中立的 pnpm workspace。M1 提供 Taro 4 客户端、NestJS API、共享接口契约、PostgreSQL、私有 MinIO bucket，以及统一的校验命令。
+宝宝成长记是一个本地优先、云厂商中立的 pnpm workspace。当前已完成 M2：Taro 4 客户端和 NestJS API 除工程基础外，还提供安全业务会话、多宝宝档案与切换、服务端实时成员授权、PostgreSQL 持久幂等和私有 MinIO bucket。
 
-当前打通的最小链路：
+当前打通的业务链路：
 
 ```text
 Taro H5 / 微信小程序
-  → GET http://localhost:3000/api/v1/health
-  → { "data": { "status": "ok", "version": "0.1.0" } }
+  → 本地模拟登录 / 微信 code2session 适配边界
+  → 访问令牌 + 刷新令牌轮换
+  → 创建宝宝与 admin 成员关系
+  → 多宝宝切换、首页空状态与会话恢复
 ```
 
 ## 环境要求
@@ -35,7 +37,7 @@ pnpm dev
 
 如果本机安装的是独立 Compose 命令，使用 `docker-compose up -d`；其余步骤不变。
 
-`pnpm dev` 同时启动 API 与 Taro H5。打开 `http://localhost:10086`，首页会显示健康检查的加载、成功或错误重试状态。同一局域网设备也可以使用开发机地址访问，例如 `http://192.168.0.140:10086`；本地 H5 开发模式会自动使用当前页面主机名连接 `3000` 端口的 API。也可以单独启动：
+本地开发宝宝档案时，将 `.env` 中 `MOCK_AUTH_ENABLED` 设为 `true`；该配置只允许用于 `local`/`test`。`pnpm dev` 同时启动 API 与 Taro H5。打开 `http://localhost:10086`，同意隐私条款后可使用测试用户登录。局域网访问时，本地 H5 开发模式会自动使用当前页面主机名连接 `3000` 端口的 API。也可以单独启动：
 
 ```bash
 pnpm dev:api
@@ -90,7 +92,7 @@ docker compose down
 
 ## 数据库与 OpenAPI
 
-M1 只建立 Prisma 入口和空基线迁移，不创建用户、宝宝或记录表；业务模型从 M2 开始按里程碑加入。
+M1 建立 Prisma 基线；M2 已加入用户、平台身份、刷新会话、宝宝、成员和持久幂等表。记录与媒体模型从 M3 开始按里程碑加入。
 
 ```bash
 pnpm db:generate
@@ -107,6 +109,7 @@ pnpm typecheck
 pnpm test
 pnpm build
 pnpm verify
+pnpm verify:m2:api  # 需先启动本地 API
 ```
 
 根 `build` 同时构建共享契约、NestJS API、Taro H5 和微信小程序产物。CI 在全新安装后执行同一个 `pnpm verify`。
@@ -123,7 +126,7 @@ pnpm --filter @baby-mp/client build:weapp
 ## 环境与安全
 
 - `.env.example` 只包含本地示例值，不应复制到 staging 或 production。
-- `MOCK_AUTH_ENABLED` 默认是 `false`。M1 不实现模拟登录；后续即使实现，staging/production 配置为 `true` 时 API 也必须拒绝启动。
+- `MOCK_AUTH_ENABLED` 默认是 `false`。M2 的模拟登录仅在 local/test 可用；staging/production 配置为 `true` 时 API 会拒绝启动，接口在关闭时返回 404。
 - 对象存储 bucket 保持私有；业务层后续只通过短时签名地址访问对象。
 - 客户端 API 地址优先由 `TARO_APP_API_BASE_URL` 在构建时注入。该值为空时，H5 开发模式使用当前页面主机名，小程序开发模式使用开发机的私网 IPv4，二者均连接 `:3000`。生产构建始终要求显式配置。
 - `APP_ENV=local` 时 API 除显式 `CORS_ORIGINS` 外，还接受 loopback 与 RFC1918 局域网 H5 来源；staging/production 始终只接受显式来源，不允许通配 CORS。

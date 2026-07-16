@@ -1,6 +1,7 @@
 import {
   CallHandler,
   ExecutionContext,
+  HttpException,
   Inject,
   Injectable,
   Logger,
@@ -9,7 +10,7 @@ import {
 import { ConfigService } from '@nestjs/config'
 import type { Response } from 'express'
 import { Observable } from 'rxjs'
-import { finalize } from 'rxjs/operators'
+import { tap } from 'rxjs/operators'
 
 import type { Environment } from '../../config/environment'
 import { requestIdFrom, type RequestWithContext } from './request-context'
@@ -29,8 +30,7 @@ export class RequestLoggingInterceptor implements NestInterceptor {
     const request = http.getRequest<RequestWithContext>()
     const response = http.getResponse<Response>()
 
-    return next.handle().pipe(
-      finalize(() => {
+    const logCompletion = (statusCode: number) => {
         this.logger.log(
           JSON.stringify({
             level: 'info',
@@ -40,10 +40,17 @@ export class RequestLoggingInterceptor implements NestInterceptor {
             requestId: requestIdFrom(request),
             method: request.method,
             path: request.path,
-            statusCode: response.statusCode,
+            statusCode,
             durationMs: Math.round((performance.now() - startedAt) * 100) / 100,
           }),
         )
+    }
+
+    return next.handle().pipe(
+      tap({
+        complete: () => logCompletion(response.statusCode),
+        error: (error: unknown) =>
+          logCompletion(error instanceof HttpException ? error.getStatus() : 500),
       }),
     )
   }

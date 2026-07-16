@@ -13,12 +13,27 @@ const booleanFromString = z
   .enum(['true', 'false'])
   .transform((value) => value === 'true')
 
+const timeZone = z.string().min(1).refine((value) => {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value }).format()
+    return true
+  } catch {
+    return false
+  }
+}, 'must be a valid IANA time zone')
+
+const optionalString = z.preprocess(
+  (value) => (value === '' ? undefined : value),
+  z.string().min(1).optional(),
+)
+
 const environmentSchema = z
   .object({
     APP_ENV: z.enum(['local', 'test', 'staging', 'production']).default('local'),
     APP_VERSION: z.string().min(1).default('0.1.0'),
     API_HOST: z.string().min(1).default('0.0.0.0'),
     API_PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
+    BUSINESS_TIME_ZONE: timeZone.default('Asia/Shanghai'),
     CORS_ORIGINS: z.string().min(1).default('http://localhost:10086'),
     DATABASE_URL: z
       .string()
@@ -26,7 +41,15 @@ const environmentSchema = z
       .default('postgresql://baby_mp:baby_mp@localhost:5432/baby_mp'),
     JWT_ACCESS_SECRET: z.string().min(16).default('local-access-secret-change-me'),
     JWT_REFRESH_SECRET: z.string().min(16).default('local-refresh-secret-change-me'),
+    JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().min(60).max(86_400).default(900),
+    JWT_REFRESH_TTL_SECONDS: z.coerce.number().int().min(300).max(31_536_000).default(2_592_000),
     MOCK_AUTH_ENABLED: booleanFromString.default('false'),
+    WECHAT_APP_ID: optionalString,
+    WECHAT_APP_SECRET: optionalString,
+    WECHAT_CODE2SESSION_URL: z
+      .string()
+      .url()
+      .default('https://api.weixin.qq.com/sns/jscode2session'),
     S3_ENDPOINT: z.string().url().default('http://localhost:9000'),
     S3_REGION: z.string().min(1).default('local'),
     S3_BUCKET: z.string().min(3).default('baby-mp-local'),
