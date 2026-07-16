@@ -1,0 +1,2 @@
+-- M1 establishes the Prisma migration baseline without creating business
+-- tables. The first domain models are introduced in M2.

@@ -1,0 +1,16 @@
+node_modules/
+.pnpm-store/
+.env
+.env.*
+!.env.example
+dist/
+coverage/
+*.tsbuildinfo
+*.log
+.DS_Store
+.playwright-cli/
+apps/client/.temp/
+apps/client/.cache/
+apps/client/.swc/
+apps/client/dist/
+apps/api/openapi/openapi.generated.json

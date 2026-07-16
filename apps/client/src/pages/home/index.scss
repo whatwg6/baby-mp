@@ -1,0 +1,30 @@
+@use '../../styles/tokens.scss' as *;
+
+.health-card {
+  &__badge {
+    display: inline-flex;
+    padding: $space-xs $space-sm;
+    border-radius: $radius-round;
+    background: $color-primary-soft;
+    color: $color-success;
+    font-size: $font-sm;
+    font-weight: 700;
+  }
+
+  &__title,
+  &__description {
+    display: block;
+  }
+
+  &__title {
+    margin-top: $space-md;
+    font-size: $font-lg;
+    font-weight: 700;
+  }
+
+  &__description {
+    margin-top: $space-sm;
+    color: $color-text-secondary;
+    font-size: $font-sm;
+  }
+}

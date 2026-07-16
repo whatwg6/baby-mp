@@ -1,0 +1,12 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// M1 intentionally contains no business models. Users, babies, and
+// memberships are introduced together in M2 so their transactional and
+// authorization invariants can be reviewed as one migration.

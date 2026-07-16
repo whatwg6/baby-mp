@@ -1,0 +1,64 @@
+@use '../../styles/tokens.scss' as *;
+
+.confirm-dialog {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: $space-lg;
+  background: $color-overlay;
+
+  &__panel {
+    width: 100%;
+    max-width: 360px;
+    box-sizing: border-box;
+    padding: $space-lg;
+    border-radius: $radius-md;
+    background: $color-surface;
+  }
+
+  &__title,
+  &__description {
+    display: block;
+  }
+
+  &__title {
+    font-size: $font-lg;
+    font-weight: 700;
+  }
+
+  &__description {
+    margin-top: $space-sm;
+    color: $color-text-secondary;
+    line-height: 1.6;
+  }
+
+  &__actions {
+    display: flex;
+    gap: $space-sm;
+    margin-top: $space-lg;
+  }
+
+  &__cancel,
+  &__confirm {
+    flex: 1;
+    border-radius: $radius-round;
+    font-size: $font-md;
+  }
+
+  &__cancel {
+    background: $color-primary-soft;
+    color: $color-text;
+  }
+
+  &__confirm {
+    background: $color-primary;
+    color: $color-surface;
+
+    &--danger {
+      background: $color-danger;
+    }
+  }
+}

@@ -1,0 +1,44 @@
+@use './tokens.scss' as *;
+
+page {
+  min-height: 100%;
+  background: $color-background;
+  color: $color-text;
+  font-size: $font-md;
+}
+
+button::after {
+  border: 0;
+}
+
+.page-shell {
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: $space-lg $space-md calc($space-xl + env(safe-area-inset-bottom));
+}
+
+.page-heading {
+  margin-bottom: $space-lg;
+}
+
+.page-title {
+  display: block;
+  font-size: $font-lg;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.page-description {
+  display: block;
+  margin-top: $space-sm;
+  color: $color-text-secondary;
+  font-size: $font-sm;
+  line-height: 1.6;
+}
+
+.surface-card {
+  padding: $space-lg;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: $color-surface;
+}

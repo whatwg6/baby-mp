@@ -1,0 +1,59 @@
+@use '../../styles/tokens.scss' as *;
+
+.page-state {
+  display: flex;
+  min-height: 260px;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: $space-xl $space-lg;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: $color-surface;
+  text-align: center;
+
+  &__symbol {
+    display: flex;
+    width: 48px;
+    height: 48px;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: $space-md;
+    border-radius: $radius-round;
+    background: $color-primary-soft;
+    color: $color-primary;
+    font-size: $font-lg;
+    font-weight: 700;
+  }
+
+  &__title,
+  &__description {
+    display: block;
+  }
+
+  &__title {
+    font-weight: 700;
+  }
+
+  &__description {
+    margin-top: $space-sm;
+    color: $color-text-secondary;
+    font-size: $font-sm;
+    line-height: 1.6;
+  }
+
+  &__action {
+    min-width: 136px;
+    margin-top: $space-lg;
+    border-radius: $radius-round;
+    background: $color-primary;
+    color: $color-surface;
+    font-size: $font-md;
+  }
+
+  &--error &__symbol,
+  &--forbidden &__symbol {
+    color: $color-danger;
+  }
+}
