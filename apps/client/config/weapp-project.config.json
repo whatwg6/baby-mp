@@ -1,0 +1,8 @@
+{
+  "compileType": "miniprogram",
+  "projectname": "baby-mp",
+  "setting": {
+    "compileHotReLoad": true,
+    "urlCheck": false
+  }
+}

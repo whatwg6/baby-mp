@@ -42,6 +42,22 @@ pnpm dev:api
 pnpm dev:client
 ```
 
+微信开发者工具联调使用开发构建，不要直接使用生产构建代替：
+
+```bash
+# API 尚未运行时，先在一个终端启动它
+pnpm dev:api
+
+# 另一个终端持续生成小程序开发产物
+pnpm dev:weapp
+```
+
+然后在微信开发者工具导入 `apps/client/dist/weapp`。开发构建未显式设置 `TARO_APP_API_BASE_URL` 时，会优先从 `en0`、`en1`、`wlan0`、`eth0` 自动选择 RFC1918 局域网 IPv4 并连接 `:3000`；产物也会关闭开发者工具的合法域名校验，以允许本地 HTTP 联调。若机器有多个网卡或 VPN 导致自动选择不正确，可显式运行：
+
+```bash
+TARO_APP_API_BASE_URL=http://<开发机局域网IP>:3000 pnpm dev:weapp
+```
+
 常用地址：
 
 - H5：`http://localhost:10086`
@@ -102,14 +118,14 @@ pnpm --filter @baby-mp/client build:h5
 pnpm --filter @baby-mp/client build:weapp
 ```
 
-微信构建产物生成到 `apps/client/dist/weapp`，需要导入微信开发者工具完成 IDE/真机验证；没有正式 AppID 时使用测试号或开发者工具的本地调试能力。
+微信构建产物生成到 `apps/client/dist/weapp`。`pnpm dev:weapp` 用于本地联调；`build:weapp` 是生产模式构建，仍要求显式提供正式 API 地址。没有正式 AppID 时使用测试号或开发者工具的本地调试能力。
 
 ## 环境与安全
 
 - `.env.example` 只包含本地示例值，不应复制到 staging 或 production。
 - `MOCK_AUTH_ENABLED` 默认是 `false`。M1 不实现模拟登录；后续即使实现，staging/production 配置为 `true` 时 API 也必须拒绝启动。
 - 对象存储 bucket 保持私有；业务层后续只通过短时签名地址访问对象。
-- 客户端 API 地址优先由 `TARO_APP_API_BASE_URL` 在构建时注入。仅在 H5 开发模式且该值为空时，客户端会使用当前页面的协议和主机名推导 `:3000`；生产构建和微信小程序仍要求显式配置。
+- 客户端 API 地址优先由 `TARO_APP_API_BASE_URL` 在构建时注入。该值为空时，H5 开发模式使用当前页面主机名，小程序开发模式使用开发机的私网 IPv4，二者均连接 `:3000`。生产构建始终要求显式配置。
 - `APP_ENV=local` 时 API 除显式 `CORS_ORIGINS` 外，还接受 loopback 与 RFC1918 局域网 H5 来源；staging/production 始终只接受显式来源，不允许通配 CORS。
 - 日志只记录请求元数据和 request ID，不记录令牌、请求体、宝宝内容或签名 URL。
 
@@ -118,6 +134,7 @@ pnpm --filter @baby-mp/client build:weapp
 - `docker: unknown command: docker compose`：安装 Compose 插件，或使用独立的 `docker-compose` 命令。
 - `5432`、`9000`、`9001` 被占用：在 `.env` 中覆盖 `POSTGRES_PORT`、`MINIO_API_PORT`、`MINIO_CONSOLE_PORT`，并同步调整 API 连接配置。
 - H5 显示 health 错误：确认 API 已启动；若显式设置了 `TARO_APP_API_BASE_URL`，确认其端口与 `API_PORT` 一致，并检查浏览器网络面板中的 request ID。局域网访问还需确认开发机防火墙允许 `10086` 和 `3000` 端口。
+- 小程序显示连接错误：确认使用 `pnpm dev:weapp` 而不是空配置的生产构建，并重新编译/重新打开 `apps/client/dist/weapp`。真机必须和开发机处于同一局域网且能够访问开发机 `3000` 端口；正式发布必须改用已登记的 HTTPS API 域名。
 - 修改共享契约后开发进程未更新：重新运行 `pnpm dev`，根命令会先构建 `@baby-mp/contracts`。
 
 产品范围、工程约束和当前验收条件见 `docs/current-milestone.md`。

@@ -1,7 +1,16 @@
 import { defineConfig, type UserConfigExport } from '@tarojs/cli'
 
+import { resolveClientApiBaseUrl } from './api-base-url'
 import devConfig from './dev'
 import prodConfig from './prod'
+
+const taroEnv = process.env.TARO_ENV ?? 'h5'
+const outputRoot = `dist/${taroEnv}`
+const apiBaseUrl = resolveClientApiBaseUrl({
+  explicitValue: process.env.TARO_APP_API_BASE_URL,
+  nodeEnv: process.env.NODE_ENV,
+  taroEnv,
+})
 
 const baseConfig: UserConfigExport = {
   projectName: 'baby-mp-client',
@@ -14,12 +23,10 @@ const baseConfig: UserConfigExport = {
     828: 0.905,
   },
   sourceRoot: 'src',
-  outputRoot: `dist/${process.env.TARO_ENV ?? 'h5'}`,
+  outputRoot,
   framework: 'react',
   env: {
-    TARO_APP_API_BASE_URL: JSON.stringify(
-      process.env.TARO_APP_API_BASE_URL ?? '',
-    ),
+    TARO_APP_API_BASE_URL: JSON.stringify(apiBaseUrl),
   },
   compiler: {
     type: 'webpack5',
@@ -32,6 +39,18 @@ const baseConfig: UserConfigExport = {
   },
   cache: {
     enable: true,
+  },
+  copy: {
+    patterns:
+      taroEnv === 'weapp'
+        ? [
+            {
+              from: 'config/weapp-project.config.json',
+              to: `${outputRoot}/project.config.json`,
+            },
+          ]
+        : [],
+    options: {},
   },
   mini: {
     postcss: {

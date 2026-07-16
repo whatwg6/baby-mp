@@ -13,6 +13,7 @@
     "dev": "pnpm --filter @baby-mp/contracts build && pnpm --parallel --filter @baby-mp/api --filter @baby-mp/client run dev",
     "dev:api": "pnpm --filter @baby-mp/contracts build && pnpm --filter @baby-mp/api dev",
     "dev:client": "pnpm --filter @baby-mp/contracts build && pnpm --filter @baby-mp/client dev",
+    "dev:weapp": "pnpm --filter @baby-mp/contracts build && pnpm --filter @baby-mp/client dev:weapp",
     "build": "pnpm -r --if-present build",
     "lint": "eslint . --max-warnings=0",
     "pretypecheck": "pnpm contracts:build",
