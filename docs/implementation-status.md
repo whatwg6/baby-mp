@@ -30,17 +30,19 @@
 - PostgreSQL、MinIO 和私有 bucket 的 Docker Compose 配置。
 - GitHub Actions CI、根 README 和无真实密钥的 `.env.example`。
 - H5 与微信小程序构建，以及浏览器端真实 health 调用。
+- 修复本地 H5 未配置 `TARO_APP_API_BASE_URL` 时在传输前失败的问题：开发模式会从页面主机名推导局域网 API 地址，并配套 local-only 的 loopback/RFC1918 CORS 策略；生产和微信小程序仍要求显式配置。
 
 ## 2. 实际验证
 
 - `pnpm install`：通过，生成 `pnpm-lock.yaml`。
 - `pnpm db:generate`：通过，Prisma Client 6.11.1 生成成功。
 - `pnpm db:deploy`：通过，`20260716000000_m1_baseline` 已应用到本地 PostgreSQL。
-- `pnpm verify`：通过；lint、三包 typecheck、15 个测试、NestJS 构建、Taro H5 构建和微信小程序构建全部成功。
+- `pnpm verify`：通过；lint、三包 typecheck、19 个测试、NestJS 构建、Taro H5 构建和微信小程序构建全部成功。
 - `pnpm openapi:generate`：通过。
 - Docker Compose：PostgreSQL 与 MinIO 均为 healthy，`minio-init` 退出码为 0。
 - API 真实请求：`GET /api/v1/health` 返回 200、request ID 和 `{ "data": { "status": "ok", "version": "0.1.0" } }`。
 - Playwright H5 验收：首页显示“服务已连接”“工程基础运行正常”“API 版本 0.1.0”；浏览器控制台无错误。
+- 局域网 H5 回归：未设置 `TARO_APP_API_BASE_URL` 时访问 `http://192.168.0.140:10086/#/pages/home/index`，浏览器实际发出 `GET http://192.168.0.140:3000/api/v1/health` 并收到 200；模拟 503 后点击“重新连接”会发起第二次请求并恢复成功状态。
 
 ## 3. 已知限制与环境说明
 

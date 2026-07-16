@@ -51,7 +51,31 @@ describe('API client', () => {
     })
   })
 
-  it('requires the API base URL configuration', () => {
-    expect(() => getApiBaseUrl('  ')).toThrow('客户端 API 地址未配置')
+  it('derives the local API URL from the H5 hostname in development', () => {
+    expect(
+      getApiBaseUrl('  ', {
+        nodeEnv: 'development',
+        taroEnv: 'h5',
+        location: { hostname: '192.168.0.140', protocol: 'http:' },
+      }),
+    ).toBe('http://192.168.0.140:3000')
+  })
+
+  it('requires explicit configuration outside H5 development', () => {
+    expect(() =>
+      getApiBaseUrl('  ', {
+        nodeEnv: 'production',
+        taroEnv: 'h5',
+        location: { hostname: 'app.example.com', protocol: 'https:' },
+      }),
+    ).toThrow('客户端 API 地址未配置')
+
+    expect(() =>
+      getApiBaseUrl('  ', { nodeEnv: 'development', taroEnv: 'weapp' }),
+    ).toThrow('客户端 API 地址未配置')
+
+    expect(() =>
+      getApiBaseUrl('  ', { nodeEnv: 'development', taroEnv: 'h5' }),
+    ).toThrow('客户端 API 地址未配置')
   })
 })

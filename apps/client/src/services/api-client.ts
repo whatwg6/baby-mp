@@ -32,12 +32,39 @@ export interface ApiRequestOptions<T> {
 
 const DEFAULT_TIMEOUT_MS = 10_000
 
-export function getApiBaseUrl(envValue = process.env.TARO_APP_API_BASE_URL): string {
-  const value = envValue?.trim().replace(/\/+$/, '')
-  if (!value) {
-    throw new ApiClientError('客户端 API 地址未配置', { code: 'INTERNAL_ERROR' })
+interface ApiBaseUrlRuntime {
+  nodeEnv?: string
+  taroEnv?: string
+  location?: Pick<Location, 'hostname' | 'protocol'>
+}
+
+function getApiBaseUrlRuntime(): ApiBaseUrlRuntime {
+  return {
+    nodeEnv: process.env.NODE_ENV,
+    taroEnv: process.env.TARO_ENV,
+    location: typeof window === 'undefined' ? undefined : window.location,
   }
-  return value
+}
+
+export function getApiBaseUrl(
+  envValue = process.env.TARO_APP_API_BASE_URL,
+  runtime = getApiBaseUrlRuntime(),
+): string {
+  const value = envValue?.trim().replace(/\/+$/, '')
+  if (value) {
+    return value
+  }
+
+  if (
+    runtime.nodeEnv === 'development' &&
+    runtime.taroEnv === 'h5' &&
+    runtime.location?.hostname &&
+    runtime.location.protocol
+  ) {
+    return `${runtime.location.protocol}//${runtime.location.hostname}:3000`
+  }
+
+  throw new ApiClientError('客户端 API 地址未配置', { code: 'INTERNAL_ERROR' })
 }
 
 const taroTransport: RequestTransport = async (options) => {

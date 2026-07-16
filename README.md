@@ -35,7 +35,7 @@ pnpm dev
 
 如果本机安装的是独立 Compose 命令，使用 `docker-compose up -d`；其余步骤不变。
 
-`pnpm dev` 同时启动 API 与 Taro H5。打开 `http://localhost:10086`，首页会显示健康检查的加载、成功或错误重试状态。也可以单独启动：
+`pnpm dev` 同时启动 API 与 Taro H5。打开 `http://localhost:10086`，首页会显示健康检查的加载、成功或错误重试状态。同一局域网设备也可以使用开发机地址访问，例如 `http://192.168.0.140:10086`；本地 H5 开发模式会自动使用当前页面主机名连接 `3000` 端口的 API。也可以单独启动：
 
 ```bash
 pnpm dev:api
@@ -109,14 +109,15 @@ pnpm --filter @baby-mp/client build:weapp
 - `.env.example` 只包含本地示例值，不应复制到 staging 或 production。
 - `MOCK_AUTH_ENABLED` 默认是 `false`。M1 不实现模拟登录；后续即使实现，staging/production 配置为 `true` 时 API 也必须拒绝启动。
 - 对象存储 bucket 保持私有；业务层后续只通过短时签名地址访问对象。
-- 客户端 API 地址由 `TARO_APP_API_BASE_URL` 在构建时注入。
+- 客户端 API 地址优先由 `TARO_APP_API_BASE_URL` 在构建时注入。仅在 H5 开发模式且该值为空时，客户端会使用当前页面的协议和主机名推导 `:3000`；生产构建和微信小程序仍要求显式配置。
+- `APP_ENV=local` 时 API 除显式 `CORS_ORIGINS` 外，还接受 loopback 与 RFC1918 局域网 H5 来源；staging/production 始终只接受显式来源，不允许通配 CORS。
 - 日志只记录请求元数据和 request ID，不记录令牌、请求体、宝宝内容或签名 URL。
 
 ## 常见问题
 
 - `docker: unknown command: docker compose`：安装 Compose 插件，或使用独立的 `docker-compose` 命令。
 - `5432`、`9000`、`9001` 被占用：在 `.env` 中覆盖 `POSTGRES_PORT`、`MINIO_API_PORT`、`MINIO_CONSOLE_PORT`，并同步调整 API 连接配置。
-- H5 显示 health 错误：确认 API 已启动、`.env` 的 `API_PORT` 与 `TARO_APP_API_BASE_URL` 一致，并检查浏览器网络面板中的 request ID。
+- H5 显示 health 错误：确认 API 已启动；若显式设置了 `TARO_APP_API_BASE_URL`，确认其端口与 `API_PORT` 一致，并检查浏览器网络面板中的 request ID。局域网访问还需确认开发机防火墙允许 `10086` 和 `3000` 端口。
 - 修改共享契约后开发进程未更新：重新运行 `pnpm dev`，根命令会先构建 `@baby-mp/contracts`。
 
 产品范围、工程约束和当前验收条件见 `docs/current-milestone.md`。
