@@ -10,6 +10,10 @@ import {
 import { ConfigService } from '@nestjs/config'
 import {
   BabyGender,
+  ExportStatus,
+  InviteStatus,
+  MediaPurpose,
+  MediaStatus,
   MemberRole,
   MemberStatus,
   Prisma,
@@ -21,9 +25,16 @@ import type { Baby } from '@baby-mp/contracts'
 import type { Environment } from '../config/environment'
 import { naturalDateInTimeZone } from '../common/time/natural-date'
 import { PrismaService } from '../database/prisma.service'
+import { MediaService } from '../media/media.service'
 import type { CreateBabyDto, UpdateBabyDto } from './baby.dto'
 
-type BabyWithMembership = PrismaBaby & { members: Array<{ role: MemberRole }> }
+type BabyWithAvatar = PrismaBaby & {
+  avatarMedia: null | {
+    objectKey: string
+    status: MediaStatus
+  }
+}
+type BabyWithMembership = BabyWithAvatar & { members: Array<{ role: MemberRole }> }
 const CREATE_OPERATION = 'babies.create'
 
 @Injectable()
@@ -32,21 +43,23 @@ export class BabiesService {
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(ConfigService)
     private readonly config: ConfigService<Environment, true>,
+    @Inject(MediaService) private readonly media: MediaService,
   ) {}
 
   async list(userId: string): Promise<Baby[]> {
     const memberships = await this.prisma.babyMember.findMany({
       where: { userId, status: MemberStatus.active, baby: { deletedAt: null } },
-      include: { baby: true },
+      include: { baby: { include: { avatarMedia: { select: { objectKey: true, status: true } } } } },
       orderBy: { joinedAt: 'asc' },
     })
-    return memberships.map((membership) => this.toBaby(membership.baby, membership.role))
+    return Promise.all(memberships.map((membership) => this.toBaby(membership.baby, membership.role)))
   }
 
   async get(userId: string, babyId: string): Promise<Baby> {
     const baby = await this.prisma.baby.findFirst({
       where: { id: babyId, deletedAt: null },
       include: {
+        avatarMedia: { select: { objectKey: true, status: true } },
         members: { where: { userId, status: MemberStatus.active }, select: { role: true } },
       },
     })
@@ -92,7 +105,10 @@ export class BabiesService {
           members: { create: { userId, role: MemberRole.admin, status: MemberStatus.active } },
         },
       })
-      const response = this.toBaby(baby, MemberRole.admin)
+      const response = await this.toBaby(
+        { ...baby, avatarMedia: null },
+        MemberRole.admin,
+      )
       await tx.idempotencyKey.update({
         where: { userId_operation_key: { userId, operation: CREATE_OPERATION, key } },
         data: { responseCode: 201, responseBody: response },
@@ -131,23 +147,106 @@ export class BabiesService {
     if (input.name !== undefined && !name) {
       throw new BadRequestException({ code: 'VALIDATION_FAILED', message: '提交内容有误', details: [{ field: 'name', reason: '昵称不能为空' }] })
     }
-
-    const result = await this.prisma.baby.updateMany({
-      where: { id: babyId, deletedAt: null, version: input.version },
-      data: {
-        ...(name !== undefined ? { name } : {}),
-        ...(input.gender !== undefined ? { gender: input.gender as BabyGender } : {}),
-        ...(input.birthDate !== undefined ? { birthDate: dates!.birthDate } : {}),
-        ...(input.birthTime !== undefined ? { birthTime: input.birthTime === null ? null : dates!.birthTime } : {}),
-        ...(input.birthHeightCm !== undefined ? { birthHeightCm: input.birthHeightCm } : {}),
-        ...(input.birthWeightKg !== undefined ? { birthWeightKg: input.birthWeightKg } : {}),
-        version: { increment: 1 },
-      },
-    })
+    const update = (client: Prisma.TransactionClient | PrismaService) =>
+      client.baby.updateMany({
+        where: { id: babyId, deletedAt: null, version: input.version },
+        data: {
+          ...(name !== undefined ? { name } : {}),
+          ...(input.gender !== undefined ? { gender: input.gender as BabyGender } : {}),
+          ...(input.birthDate !== undefined ? { birthDate: dates!.birthDate } : {}),
+          ...(input.birthTime !== undefined ? { birthTime: input.birthTime === null ? null : dates!.birthTime } : {}),
+          ...(input.birthHeightCm !== undefined ? { birthHeightCm: input.birthHeightCm } : {}),
+          ...(input.birthWeightKg !== undefined ? { birthWeightKg: input.birthWeightKg } : {}),
+          ...(input.avatarMediaId !== undefined ? { avatarMediaId: input.avatarMediaId } : {}),
+          version: { increment: 1 },
+        },
+      })
+    const result = input.avatarMediaId
+      ? await this.prisma.$transaction(async (tx) => {
+        const avatar = await tx.media.findFirst({
+          where: {
+            id: input.avatarMediaId!,
+            babyId,
+            purpose: MediaPurpose.record_image,
+            status: MediaStatus.ready,
+            deletedAt: null,
+            mimeType: { in: ['image/jpeg', 'image/png'] },
+          },
+          select: { id: true },
+        })
+        if (!avatar) {
+          throw new BadRequestException({
+            code: 'VALIDATION_FAILED',
+            message: '头像图片不可用',
+            details: [{ field: 'avatarMediaId', reason: '头像必须是当前宝宝已完成上传的 JPEG 或 PNG 图片' }],
+          })
+        }
+        return update(tx)
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
+      : await update(this.prisma)
     if (result.count !== 1) {
       throw new ConflictException({ code: 'VERSION_CONFLICT', message: '内容已被其他成员更新，请刷新后重试' })
     }
     return this.get(userId, babyId)
+  }
+
+  async remove(userId: string, babyId: string, requestId?: string): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const membership = await tx.babyMember.findFirst({
+        where: {
+          userId,
+          babyId,
+          role: MemberRole.admin,
+          status: MemberStatus.active,
+          baby: { deletedAt: null },
+        },
+        select: { id: true },
+      })
+      if (!membership) throw new NotFoundException('资源不存在')
+
+      const deletedAt = new Date()
+      const deleted = await tx.baby.updateMany({
+        where: { id: babyId, deletedAt: null },
+        data: { deletedAt, version: { increment: 1 } },
+      })
+      if (deleted.count !== 1) throw new NotFoundException('资源不存在')
+
+      await Promise.all([
+        tx.babyMember.updateMany({
+          where: { babyId, status: MemberStatus.active },
+          data: {
+            status: MemberStatus.removed,
+            removedAt: deletedAt,
+            removedBy: userId,
+            version: { increment: 1 },
+          },
+        }),
+        tx.familyInvite.updateMany({
+          where: { babyId, status: InviteStatus.pending },
+          data: { status: InviteStatus.revoked, revokedAt: deletedAt },
+        }),
+        tx.exportJob.updateMany({
+          where: { babyId, status: { in: [ExportStatus.pending, ExportStatus.processing] } },
+          data: {
+            status: ExportStatus.failed,
+            errorCode: 'BABY_DELETED',
+            workerLeaseId: null,
+            leaseExpiresAt: null,
+          },
+        }),
+        tx.auditLog.create({
+          data: {
+            actorUserId: userId,
+            babyId,
+            action: 'baby.deleted',
+            resourceType: 'baby',
+            resourceId: babyId,
+            requestId,
+            metadata: {},
+          },
+        }),
+      ])
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
   }
 
   private replay(storedHash: string, requestHash: string, body: Prisma.JsonValue | null): Baby {
@@ -179,7 +278,10 @@ export class BabiesService {
     }
   }
 
-  private toBaby(baby: PrismaBaby | BabyWithMembership, role: MemberRole): Baby {
+  private async toBaby(
+    baby: BabyWithAvatar | BabyWithMembership,
+    role: MemberRole,
+  ): Promise<Baby> {
     return {
       id: baby.id,
       name: baby.name,
@@ -188,7 +290,9 @@ export class BabiesService {
       birthTime: baby.birthTime ? baby.birthTime.toISOString().slice(11, 16) : null,
       birthHeightCm: baby.birthHeightCm === null ? null : Number(baby.birthHeightCm),
       birthWeightKg: baby.birthWeightKg === null ? null : Number(baby.birthWeightKg),
-      avatarUrl: null,
+      avatarUrl: baby.avatarMedia
+        ? await this.media.accessUrlFor(baby.avatarMedia)
+        : null,
       role,
       version: baby.version,
       createdAt: baby.createdAt.toISOString(),

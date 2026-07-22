@@ -6,7 +6,7 @@ base_url="${M2_API_BASE_URL:-http://127.0.0.1:3300/api/v1}"
 run_id="$(date +%s)-$$"
 admin_key="m2-admin-${run_id}"
 outsider_key="m2-outsider-${run_id}"
-idempotency_key="$(uuidgen | tr '[:upper:]' '[:lower:]')"
+idempotency_key="$(node -e 'process.stdout.write(crypto.randomUUID())')"
 
 request() {
   method="$1"

@@ -7,6 +7,20 @@ storage_url="${M3_STORAGE_URL:-http://127.0.0.1:19000}"
 bucket="${M3_STORAGE_BUCKET:-baby-mp-local}"
 run_id="$(date +%s)-$$"
 
+new_uuid() {
+  node -e 'process.stdout.write(crypto.randomUUID())'
+}
+
+sha256_file() {
+  node -e '
+    const { createHash } = require("node:crypto");
+    const { createReadStream } = require("node:fs");
+    const hash = createHash("sha256");
+    createReadStream(process.argv[1]).on("data", (chunk) => hash.update(chunk))
+      .on("end", () => process.stdout.write(hash.digest("hex")));
+  ' "$1"
+}
+
 request() {
   method="$1"
   path="$2"
@@ -55,7 +69,7 @@ printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAADCAIAAADZSiLoAAAAGUlEQVR4nGP4z8DAwMD
 printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZVZkAAAAASUVORK5CYII=' \
   | base64 -d >"$temporary_directory/replacement.png"
 original_size="$(wc -c <"$temporary_directory/original.png" | tr -d ' ')"
-original_sha="$(shasum -a 256 "$temporary_directory/original.png" | awk '{print $1}')"
+original_sha="$(sha256_file "$temporary_directory/original.png")"
 
 anonymous_status="$(curl -sS -o "$temporary_directory/anonymous.json" -w '%{http_code}' "${storage_url}/${bucket}")"
 assert_status "$anonymous_status" 403 'anonymous bucket listing'
@@ -72,7 +86,7 @@ status="$(request POST /auth/mock-login \
 assert_status "$status" 201 'outsider mock login'
 outsider_access="$(jq -er '.data.accessToken' "$temporary_directory/outsider-login.json")"
 
-baby_key="$(uuidgen | tr '[:upper:]' '[:lower:]')"
+baby_key="$(new_uuid)"
 baby_body='{"name":"M3 Synthetic Baby","gender":"unspecified","birthDate":"2025-01-01"}'
 status="$(request POST /babies "$baby_body" "$admin_access" "$baby_key" "$temporary_directory/baby.json")"
 assert_status "$status" 201 'baby creation'
@@ -98,7 +112,7 @@ access_url="$(jq -er '.data.accessUrl' "$temporary_directory/complete.json")"
 
 get_status="$(curl -sS -o "$temporary_directory/downloaded.png" -w '%{http_code}' "$access_url")"
 assert_status "$get_status" 200 'signed media GET'
-downloaded_sha="$(shasum -a 256 "$temporary_directory/downloaded.png" | awk '{print $1}')"
+downloaded_sha="$(sha256_file "$temporary_directory/downloaded.png")"
 if [ "$downloaded_sha" != "$original_sha" ]; then
   echo 'M3 verification failed: signed GET bytes differ from uploaded bytes' >&2
   exit 1
@@ -108,14 +122,14 @@ fi
 curl -sS -o "$temporary_directory/overwrite.txt" -X PUT -H 'Content-Type: image/png' \
   --data-binary "@$temporary_directory/replacement.png" "$upload_url"
 curl -sS -o "$temporary_directory/after-overwrite.png" "$access_url"
-after_overwrite_sha="$(shasum -a 256 "$temporary_directory/after-overwrite.png" | awk '{print $1}')"
+after_overwrite_sha="$(sha256_file "$temporary_directory/after-overwrite.png")"
 if [ "$after_overwrite_sha" != "$original_sha" ]; then
   echo 'M3 verification failed: expired quarantine PUT path changed the ready object' >&2
   exit 1
 fi
 
 occurred_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-note_key="$(uuidgen | tr '[:upper:]' '[:lower:]')"
+note_key="$(new_uuid)"
 note_body="{\"type\":\"note\",\"occurredAt\":\"${occurred_at}\",\"content\":\"M3 synthetic note\",\"mediaIds\":[\"${media_id}\"]}"
 status="$(request POST "/babies/${baby_id}/records" "$note_body" "$admin_access" "$note_key" "$temporary_directory/note.json")"
 assert_status "$status" 201 'note creation'
@@ -130,13 +144,13 @@ conflicting_note="{\"type\":\"note\",\"occurredAt\":\"${occurred_at}\",\"content
 status="$(request POST "/babies/${baby_id}/records" "$conflicting_note" "$admin_access" "$note_key" "$temporary_directory/note-conflict.json")"
 assert_status "$status" 409 'record idempotency conflict'
 
-measurement_key="$(uuidgen | tr '[:upper:]' '[:lower:]')"
+measurement_key="$(new_uuid)"
 measurement_body="{\"type\":\"measurement\",\"occurredAt\":\"${occurred_at}\",\"content\":\"synthetic\",\"measurement\":{\"heightCm\":80.25,\"weightKg\":10.125},\"mediaIds\":[]}"
 status="$(request POST "/babies/${baby_id}/records" "$measurement_body" "$admin_access" "$measurement_key" "$temporary_directory/measurement.json")"
 assert_status "$status" 201 'measurement creation'
 measurement_id="$(jq -er '.data.id' "$temporary_directory/measurement.json")"
 
-milestone_key="$(uuidgen | tr '[:upper:]' '[:lower:]')"
+milestone_key="$(new_uuid)"
 milestone_body="{\"type\":\"milestone\",\"occurredAt\":\"${occurred_at}\",\"title\":\"M3 synthetic milestone\",\"mediaIds\":[]}"
 status="$(request POST "/babies/${baby_id}/records" "$milestone_body" "$admin_access" "$milestone_key" "$temporary_directory/milestone.json")"
 assert_status "$status" 201 'milestone creation'
@@ -167,13 +181,13 @@ assert_status "$status" 404 'outsider record read'
 status="$(request GET "/media/${media_id}" '{}' "$outsider_access" '' "$temporary_directory/outsider-media.json")"
 assert_status "$status" 404 'outsider media read'
 
-second_baby_key="$(uuidgen | tr '[:upper:]' '[:lower:]')"
+second_baby_key="$(new_uuid)"
 status="$(request POST /babies '{"name":"M3 Synthetic Baby Two","gender":"unspecified","birthDate":"2025-01-01"}' \
   "$admin_access" "$second_baby_key" "$temporary_directory/second-baby.json")"
 assert_status "$status" 201 'second baby creation'
 second_baby_id="$(jq -er '.data.id' "$temporary_directory/second-baby.json")"
 status="$(request POST "/babies/${second_baby_id}/records" "$note_body" "$admin_access" \
-  "$(uuidgen | tr '[:upper:]' '[:lower:]')" "$temporary_directory/cross-baby-media.json")"
+  "$(new_uuid)" "$temporary_directory/cross-baby-media.json")"
 assert_status "$status" 404 'cross-baby media attachment'
 status="$(request GET "/babies/${second_baby_id}/records?limit=20" '{}' "$admin_access" '' "$temporary_directory/second-timeline.json")"
 assert_status "$status" 200 'second baby timeline'

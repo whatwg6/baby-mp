@@ -12,3 +12,8 @@ export interface BabyInput {
   birthHeightCm?: number | null
   birthWeightKg?: number | null
 }
+
+export type BabyUpdateInput = Partial<BabyInput> & {
+  version: number
+  avatarMediaId?: string | null
+}

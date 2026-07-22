@@ -1,0 +1,21 @@
+@use '../../styles/tokens.scss' as *;
+
+.baby-list-avatar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+
+.baby-list-avatar--fallback {
+  background: $color-primary-soft;
+  color: $color-primary;
+  font-weight: 700;
+}
+
+.baby-list-body {
+  flex: 1;
+}

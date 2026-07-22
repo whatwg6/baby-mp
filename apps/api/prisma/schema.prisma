@@ -65,6 +65,50 @@ enum MediaStatus {
   @@map("media_status")
 }
 
+enum MediaPurpose {
+  record_image
+  export_archive
+
+  @@map("media_purpose")
+}
+
+enum InviteStatus {
+  pending
+  accepted
+  revoked
+  expired
+
+  @@map("invite_status")
+}
+
+enum ExportStatus {
+  pending
+  processing
+  completed
+  failed
+  expired
+
+  @@map("export_status")
+}
+
+enum DataRightsRequestType {
+  account_deletion
+  data_access
+  correction
+
+  @@map("data_rights_request_type")
+}
+
+enum DataRightsRequestStatus {
+  pending
+  processing
+  completed
+  rejected
+  cancelled
+
+  @@map("data_rights_request_status")
+}
+
 model User {
   id           String             @id @default(uuid()) @db.Uuid
   displayName  String?            @map("display_name") @db.VarChar(80)
@@ -86,6 +130,11 @@ model User {
   createdRecords Record[]          @relation("RecordCreator")
   updatedRecords Record[]          @relation("RecordUpdater")
   deletedRecords Record[]          @relation("RecordDeleter")
+  createdInvites FamilyInvite[]    @relation("InviteCreator")
+  acceptedInvites FamilyInvite[]   @relation("InviteAcceptor")
+  auditLogs AuditLog[]              @relation("AuditActor")
+  requestedExports ExportJob[]      @relation("ExportRequester")
+  dataRightsRequests DataRightsRequest[]
 
   @@map("users")
 }
@@ -144,6 +193,10 @@ model Baby {
   members         BabyMember[]
   media           Media[]
   records         Record[]
+  invites         FamilyInvite[]
+  auditLogs       AuditLog[]
+  exportJobs      ExportJob[]
+  dataRightsRequests DataRightsRequest[]
   avatarMedia     Media?        @relation("BabyAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
 
   @@index([createdBy])
@@ -164,6 +217,7 @@ model Media {
   height          Int?
   sha256          String?     @db.Char(64)
   status          MediaStatus @default(pending)
+  purpose         MediaPurpose @default(record_image)
   createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
   readyAt         DateTime?   @map("ready_at") @db.Timestamptz(3)
   deletedAt       DateTime?   @map("deleted_at") @db.Timestamptz(3)
@@ -173,6 +227,7 @@ model Media {
   records         RecordMedia[]
   userAvatars     User[]      @relation("UserAvatar")
   babyAvatars     Baby[]      @relation("BabyAvatar")
+  exportResults   ExportJob[] @relation("ExportResult")
 
   @@index([babyId, status])
   @@index([ownerUserId, status, createdAt])
@@ -270,4 +325,88 @@ model IdempotencyKey {
   @@id([userId, operation, key])
   @@index([expiresAt])
   @@map("idempotency_keys")
+}
+
+model FamilyInvite {
+  id         String       @id @default(uuid()) @db.Uuid
+  babyId     String       @map("baby_id") @db.Uuid
+  role       MemberRole
+  tokenHash  String       @unique @map("token_hash") @db.Char(64)
+  status     InviteStatus @default(pending)
+  expiresAt  DateTime     @map("expires_at") @db.Timestamptz(3)
+  createdBy  String       @map("created_by") @db.Uuid
+  acceptedBy String?      @map("accepted_by") @db.Uuid
+  acceptedAt DateTime?    @map("accepted_at") @db.Timestamptz(3)
+  revokedAt  DateTime?    @map("revoked_at") @db.Timestamptz(3)
+  createdAt  DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  baby       Baby         @relation(fields: [babyId], references: [id], onDelete: Cascade)
+  creator    User         @relation("InviteCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+  acceptor   User?        @relation("InviteAcceptor", fields: [acceptedBy], references: [id], onDelete: SetNull)
+
+  @@index([babyId, status, createdAt(sort: Desc)])
+  @@index([expiresAt, status])
+  @@map("family_invites")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  babyId      String?  @map("baby_id") @db.Uuid
+  action      String   @db.VarChar(80)
+  resourceType String  @map("resource_type") @db.VarChar(50)
+  resourceId  String?  @map("resource_id") @db.Uuid
+  requestId   String?  @map("request_id") @db.VarChar(64)
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  actor       User?    @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  baby        Baby?    @relation(fields: [babyId], references: [id], onDelete: SetNull)
+
+  @@index([babyId, createdAt(sort: Desc)])
+  @@index([actorUserId, createdAt(sort: Desc)])
+  @@map("audit_logs")
+}
+
+model ExportJob {
+  id             String       @id @default(uuid()) @db.Uuid
+  babyId         String       @map("baby_id") @db.Uuid
+  requestedBy    String       @map("requested_by") @db.Uuid
+  status         ExportStatus @default(pending)
+  scope          Json
+  resultMediaId  String?      @unique @map("result_media_id") @db.Uuid
+  errorCode      String?      @map("error_code") @db.VarChar(64)
+  attemptCount   Int          @default(0) @map("attempt_count")
+  nextAttemptAt  DateTime     @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  workerLeaseId  String?      @map("worker_lease_id") @db.Uuid
+  leaseExpiresAt DateTime?    @map("lease_expires_at") @db.Timestamptz(3)
+  startedAt      DateTime?    @map("started_at") @db.Timestamptz(3)
+  completedAt    DateTime?    @map("completed_at") @db.Timestamptz(3)
+  expiresAt      DateTime?    @map("expires_at") @db.Timestamptz(3)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  baby           Baby         @relation(fields: [babyId], references: [id], onDelete: Cascade)
+  requester      User         @relation("ExportRequester", fields: [requestedBy], references: [id], onDelete: Restrict)
+  resultMedia    Media?       @relation("ExportResult", fields: [resultMediaId], references: [id], onDelete: SetNull)
+
+  @@index([babyId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([status, nextAttemptAt])
+  @@index([requestedBy, createdAt(sort: Desc)])
+  @@map("export_jobs")
+}
+
+model DataRightsRequest {
+  id                String                  @id @default(uuid()) @db.Uuid
+  requesterUserId   String                  @map("requester_user_id") @db.Uuid
+  babyId            String?                 @map("baby_id") @db.Uuid
+  type              DataRightsRequestType
+  status            DataRightsRequestStatus @default(pending)
+  activeRequestKey  String?                 @unique @map("active_request_key") @db.VarChar(160)
+  createdAt         DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+  resolvedAt        DateTime?               @map("resolved_at") @db.Timestamptz(3)
+  requester         User                    @relation(fields: [requesterUserId], references: [id], onDelete: Restrict)
+  baby              Baby?                   @relation(fields: [babyId], references: [id], onDelete: SetNull)
+
+  @@index([requesterUserId, createdAt(sort: Desc)])
+  @@index([status, createdAt])
+  @@map("data_rights_requests")
 }

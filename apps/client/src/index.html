@@ -4,9 +4,19 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#fffaf5" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>宝宝成长记</title>
   </head>
   <body>
     <div id="app"></div>
+    <a id="h5-download-anchor" hidden rel="noopener"></a>
+    <div
+      id="h5-toast-root"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      hidden
+      style="position: fixed; left: 50%; bottom: 72px; z-index: 9999; transform: translateX(-50%); padding: 10px 16px; border-radius: 8px; background: rgba(35, 31, 29, 0.9); color: #fff; font-size: 14px; pointer-events: none"
+    ></div>
   </body>
 </html>

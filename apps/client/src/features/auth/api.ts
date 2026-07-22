@@ -16,14 +16,6 @@ export async function platformLogin(code: string): Promise<Session> {
   return response.data
 }
 
-export async function mockLogin(mockUserKey: string, displayName: string): Promise<Session> {
-  const response = await createApiClient().request({
-    path: '/api/v1/auth/mock-login', method: 'POST', body: { mockUserKey, displayName },
-    schema: sessionResponseSchema, skipAuth: true, skipRefresh: true,
-  })
-  return response.data
-}
-
 export async function refreshSession(refreshToken: string): Promise<Session> {
   const response = await createApiClient().request({
     path: '/api/v1/auth/refresh', method: 'POST', body: { refreshToken },

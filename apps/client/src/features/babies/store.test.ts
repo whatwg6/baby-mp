@@ -81,4 +81,87 @@ describe('baby context store', () => {
     expect(store.getBabyState().babies).toEqual([babyA, babyB])
     expect(store.getBabyState().current?.id).toBe(babyB.id)
   })
+
+  it('removes a deleted current baby and selects the next accessible baby', async () => {
+    listBabiesMock.mockResolvedValue([babyA, babyB])
+    const store = await import('./store')
+    await store.loadBabies()
+
+    await store.removeBabyFromState(babyA.id)
+
+    expect(store.getBabyState().babies).toEqual([babyB])
+    expect(store.getBabyState().current).toEqual(babyB)
+    expect(platformMock.setStorage).toHaveBeenLastCalledWith(
+      'baby-mp.current-baby-id.v1',
+      babyB.id,
+    )
+  })
+
+  it('clears persisted selection when the last baby is deleted', async () => {
+    listBabiesMock.mockResolvedValue([babyA])
+    const store = await import('./store')
+    await store.loadBabies()
+
+    await store.removeBabyFromState(babyA.id)
+
+    expect(store.getBabyState()).toMatchObject({
+      status: 'ready',
+      babies: [],
+      current: undefined,
+    })
+    expect(platformMock.removeStorage).toHaveBeenCalledWith(
+      'baby-mp.current-baby-id.v1',
+    )
+  })
+
+  it('immediately removes a revoked baby and reconciles the accessible list', async () => {
+    listBabiesMock.mockResolvedValueOnce([babyA, babyB]).mockResolvedValueOnce([babyB])
+    const store = await import('./store')
+    const { ApiClientError } = await import('../../services/api-error')
+    await store.loadBabies()
+
+    const refreshing = store.refreshBabiesAfterAccessError(new ApiClientError('不可见', {
+      code: 'RESOURCE_NOT_FOUND',
+      status: 404,
+    }), babyA.id)
+
+    expect(store.getBabyState().babies).toEqual([babyB])
+    expect(store.getBabyState().current).toEqual(babyB)
+    await refreshing
+    expect(listBabiesMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('hides the old selection while an unknown revoked resource refreshes access', async () => {
+    listBabiesMock.mockResolvedValueOnce([babyA])
+    const store = await import('./store')
+    const { ApiClientError } = await import('../../services/api-error')
+    await store.loadBabies()
+    const refreshed = deferred<typeof babyA[]>()
+    listBabiesMock.mockReturnValueOnce(refreshed.promise)
+
+    const refreshing = store.refreshBabiesAfterAccessError(new ApiClientError('禁止访问', {
+      code: 'FORBIDDEN',
+      status: 403,
+    }))
+
+    expect(store.getBabyState()).toMatchObject({ status: 'loading', babies: [] })
+    expect(store.getBabyState().current).toBeUndefined()
+    refreshed.resolve([])
+    await refreshing
+    expect(store.getBabyState()).toMatchObject({ status: 'ready', babies: [] })
+    expect(store.getBabyState().current).toBeUndefined()
+  })
+
+  it('does not clear baby state or reload for an ordinary network error', async () => {
+    listBabiesMock.mockResolvedValue([babyA])
+    const store = await import('./store')
+    await store.loadBabies()
+
+    await expect(store.refreshBabiesAfterAccessError(new Error('network down'), babyA.id))
+      .resolves.toBe(false)
+
+    expect(store.getBabyState().current).toEqual(babyA)
+    expect(store.getBabyState().babies).toEqual([babyA])
+    expect(listBabiesMock).toHaveBeenCalledTimes(1)
+  })
 })

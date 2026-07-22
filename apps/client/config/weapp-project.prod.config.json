@@ -1,0 +1,9 @@
+{
+  "appid": "wx433aecb90d44e9fe",
+  "compileType": "miniprogram",
+  "projectname": "baby-mp",
+  "setting": {
+    "compileHotReLoad": false,
+    "urlCheck": true
+  }
+}

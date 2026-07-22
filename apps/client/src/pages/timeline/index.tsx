@@ -9,6 +9,7 @@ import { listRecords } from '../../features/records/api'
 import { RecordCard } from '../../features/records/RecordCard'
 import type { GrowthRecord, RecordType } from '../../features/records/types'
 import { platform } from '../../platform'
+import { isResourceAccessError } from '../../services/api-error'
 
 import './index.scss'
 
@@ -42,7 +43,14 @@ export default function TimelinePage() {
       setRecords(page.data)
       setCursor(page.meta.nextCursor)
     } catch (cause) {
-      if (requestGeneration === generation.current) setError(cause instanceof Error ? cause.message : '时间轴加载失败')
+      if (requestGeneration === generation.current) {
+        if (isResourceAccessError(cause)) {
+          setRecords([])
+          setCursor(null)
+          void loadBabies().catch(() => undefined)
+        }
+        setError(cause instanceof Error ? cause.message : '时间轴加载失败')
+      }
     } finally {
       if (requestGeneration === generation.current) setLoading(false)
     }
@@ -64,7 +72,14 @@ export default function TimelinePage() {
       setCursor(page.meta.nextCursor)
       setError(undefined)
     } catch (cause) {
-      if (requestGeneration === generation.current) setError(cause instanceof Error ? cause.message : '加载更多失败，请重试')
+      if (requestGeneration === generation.current) {
+        if (isResourceAccessError(cause)) {
+          setRecords([])
+          setCursor(null)
+          void loadBabies().catch(() => undefined)
+        }
+        setError(cause instanceof Error ? cause.message : '加载更多失败，请重试')
+      }
     } finally {
       if (requestGeneration === generation.current) setLoadingMore(false)
     }

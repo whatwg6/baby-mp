@@ -33,6 +33,7 @@ import type { Media, MediaUploadResponse, SuccessResponse } from '@baby-mp/contr
 import { AuthenticationGuard } from '../auth/authentication.guard'
 import { ApiErrorResponseDto } from '../auth/auth.dto'
 import type { RequestWithContext } from '../common/http/request-context'
+import { RateLimit } from '../common/security/rate-limit.decorator'
 import {
   CompleteMediaUploadDto,
   CreateMediaUploadDto,
@@ -49,6 +50,7 @@ export class MediaController {
   constructor(@Inject(MediaService) private readonly media: MediaService) {}
 
   @Post('babies/:babyId/media/uploads')
+  @RateLimit('upload')
   @ApiParam({ name: 'babyId', format: 'uuid' })
   @ApiBody({ type: CreateMediaUploadDto })
   @ApiCreatedResponse({ type: MediaUploadResponseDto })
@@ -66,6 +68,7 @@ export class MediaController {
   }
 
   @Post('media/:mediaId/complete')
+  @RateLimit('upload')
   @HttpCode(HttpStatus.OK)
   @ApiParam({ name: 'mediaId', format: 'uuid' })
   @ApiBody({ type: CompleteMediaUploadDto })

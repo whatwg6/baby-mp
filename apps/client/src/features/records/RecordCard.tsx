@@ -23,6 +23,6 @@ export function RecordCard({ record, onClick }: { record: GrowthRecord; onClick:
       <Text className="record-card__summary">{summary || '一张成长照片'}</Text>
       <Text className="record-card__author">由 {record.createdBy.displayName || '家庭成员'} 记录</Text>
     </View>
-    {record.media[0]?.accessUrl ? <Image className="record-card__cover" src={record.media[0].accessUrl || ''} mode="aspectFill" /> : null}
+    {record.media[0]?.accessUrl ? <Image className="record-card__cover" src={record.media[0].accessUrl || ''} mode="aspectFill" lazyLoad /> : null}
   </View>
 }

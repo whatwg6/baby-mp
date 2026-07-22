@@ -1,6 +1,14 @@
 import { BadRequestException } from '@nestjs/common'
 import type { ConfigService } from '@nestjs/config'
-import { BabyGender, MemberRole, MemberStatus } from '@prisma/client'
+import {
+  BabyGender,
+  ExportStatus,
+  InviteStatus,
+  MediaPurpose,
+  MediaStatus,
+  MemberRole,
+  MemberStatus,
+} from '@prisma/client'
 import { validate } from 'class-validator'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -8,6 +16,7 @@ import { BabiesService } from '../src/babies/babies.service'
 import { CreateBabyDto } from '../src/babies/baby.dto'
 import type { Environment } from '../src/config/environment'
 import type { PrismaService } from '../src/database/prisma.service'
+import type { MediaService } from '../src/media/media.service'
 
 const userId = '11111111-1111-4111-8111-111111111111'
 const key = '22222222-2222-4222-8222-222222222222'
@@ -22,6 +31,12 @@ function config(): ConfigService<Environment, true> {
     get: vi.fn((name: keyof Environment) =>
       name === 'BUSINESS_TIME_ZONE' ? 'Asia/Shanghai' : undefined),
   } as unknown as ConfigService<Environment, true>
+}
+
+function mediaService(): MediaService {
+  return {
+    accessUrlFor: vi.fn(async () => 'https://media.example.test/avatar'),
+  } as unknown as MediaService
 }
 
 function babyRecord() {
@@ -85,7 +100,7 @@ describe('BabiesService consistency', () => {
         }
       }),
     } as unknown as PrismaService
-    const service = new BabiesService(prisma, config())
+    const service = new BabiesService(prisma, config(), mediaService())
 
     const [first, second] = await Promise.all([
       service.create(userId, key, input),
@@ -103,6 +118,7 @@ describe('BabiesService consistency', () => {
     const service = new BabiesService(
       { $transaction: transaction } as unknown as PrismaService,
       config(),
+      mediaService(),
     )
 
     await expect(service.create(userId, key, { ...input, name: '   ' }))
@@ -161,7 +177,7 @@ describe('BabiesService consistency', () => {
         return result
       }),
     } as unknown as PrismaService
-    const service = new BabiesService(prisma, config())
+    const service = new BabiesService(prisma, config(), mediaService())
 
     await expect(service.create(userId, key, input))
       .rejects.toThrow('fault after baby and membership creation')
@@ -171,5 +187,153 @@ describe('BabiesService consistency', () => {
       }),
     }))
     expect(committed).toEqual({ babies: 0, memberships: 0, idempotencyKeys: 0, responses: 0 })
+  })
+
+  it('signs a short-lived URL for a ready baby avatar in list responses', async () => {
+    const avatar = {
+      objectKey: 'media/private-avatar.jpg',
+      status: MediaStatus.ready,
+    }
+    const accessUrlFor = vi.fn(async () => 'https://media.example.test/signed-avatar')
+    const prisma = {
+      babyMember: {
+        findMany: vi.fn(async () => [{
+          role: MemberRole.admin,
+          baby: { ...babyRecord(), avatarMediaId: '44444444-4444-4444-8444-444444444444', avatarMedia: avatar },
+        }]),
+      },
+    } as unknown as PrismaService
+    const service = new BabiesService(
+      prisma,
+      config(),
+      { accessUrlFor } as unknown as MediaService,
+    )
+
+    const result = await service.list(userId)
+
+    expect(result[0]?.avatarUrl).toBe('https://media.example.test/signed-avatar')
+    expect(accessUrlFor).toHaveBeenCalledWith(avatar)
+  })
+
+  it('rejects an avatar that is not a ready image belonging to the target baby', async () => {
+    const current = {
+      ...babyRecord(),
+      members: [{ role: MemberRole.admin }],
+    }
+    const updateMany = vi.fn()
+    const tx = {
+      media: {
+        findFirst: vi.fn(async () => null),
+      },
+      baby: { updateMany },
+    }
+    const prisma = {
+      baby: {
+        findFirst: vi.fn(async () => current),
+        updateMany,
+      },
+      $transaction: vi.fn(async (
+        callback: (client: typeof tx) => Promise<unknown>,
+      ) => callback(tx)),
+    } as unknown as PrismaService
+    const service = new BabiesService(prisma, config(), mediaService())
+    const avatarMediaId = '44444444-4444-4444-8444-444444444444'
+
+    await expect(service.update(userId, current.id, {
+      version: 1,
+      avatarMediaId,
+    })).rejects.toBeInstanceOf(BadRequestException)
+
+    expect(tx.media.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: avatarMediaId,
+        babyId: current.id,
+        purpose: MediaPurpose.record_image,
+        status: MediaStatus.ready,
+        deletedAt: null,
+        mimeType: { in: ['image/jpeg', 'image/png'] },
+      },
+      select: { id: true },
+    })
+    expect(updateMany).not.toHaveBeenCalled()
+  })
+
+  it('soft deletes a baby and immediately revokes access and active work atomically', async () => {
+    const tx = {
+      babyMember: {
+        findFirst: vi.fn(async () => ({ id: '55555555-5555-4555-8555-555555555555' })),
+        updateMany: vi.fn(async () => ({ count: 3 })),
+      },
+      baby: {
+        updateMany: vi.fn(async () => ({ count: 1 })),
+      },
+      familyInvite: {
+        updateMany: vi.fn(async () => ({ count: 2 })),
+      },
+      exportJob: {
+        updateMany: vi.fn(async () => ({ count: 1 })),
+      },
+      auditLog: {
+        create: vi.fn(async () => ({})),
+      },
+    }
+    const prisma = {
+      $transaction: vi.fn(async (callback: (client: typeof tx) => Promise<void>) => callback(tx)),
+    } as unknown as PrismaService
+    const service = new BabiesService(prisma, config(), mediaService())
+    const babyId = babyRecord().id
+
+    await service.remove(userId, babyId, 'request-1')
+
+    expect(tx.babyMember.findFirst).toHaveBeenCalledWith({
+      where: {
+        userId,
+        babyId,
+        role: MemberRole.admin,
+        status: MemberStatus.active,
+        baby: { deletedAt: null },
+      },
+      select: { id: true },
+    })
+    expect(tx.baby.updateMany).toHaveBeenCalledWith({
+      where: { id: babyId, deletedAt: null },
+      data: { deletedAt: expect.any(Date), version: { increment: 1 } },
+    })
+    expect(tx.babyMember.updateMany).toHaveBeenCalledWith({
+      where: { babyId, status: MemberStatus.active },
+      data: {
+        status: MemberStatus.removed,
+        removedAt: expect.any(Date),
+        removedBy: userId,
+        version: { increment: 1 },
+      },
+    })
+    expect(tx.familyInvite.updateMany).toHaveBeenCalledWith({
+      where: { babyId, status: InviteStatus.pending },
+      data: { status: InviteStatus.revoked, revokedAt: expect.any(Date) },
+    })
+    expect(tx.exportJob.updateMany).toHaveBeenCalledWith({
+      where: {
+        babyId,
+        status: { in: [ExportStatus.pending, ExportStatus.processing] },
+      },
+      data: {
+        status: ExportStatus.failed,
+        errorCode: 'BABY_DELETED',
+        workerLeaseId: null,
+        leaseExpiresAt: null,
+      },
+    })
+    expect(tx.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        actorUserId: userId,
+        babyId,
+        action: 'baby.deleted',
+        resourceType: 'baby',
+        resourceId: babyId,
+        requestId: 'request-1',
+        metadata: {},
+      },
+    })
   })
 })

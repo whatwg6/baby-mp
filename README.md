@@ -140,4 +140,4 @@ pnpm --filter @baby-mp/client build:weapp
 - 小程序显示连接错误：确认使用 `pnpm dev:weapp` 而不是空配置的生产构建，并重新编译/重新打开 `apps/client/dist/weapp`。真机必须和开发机处于同一局域网且能够访问开发机 `3000` 端口；正式发布必须改用已登记的 HTTPS API 域名。
 - 修改共享契约后开发进程未更新：重新运行 `pnpm dev`，根命令会先构建 `@baby-mp/contracts`。
 
-产品范围、工程约束和当前验收条件见 `docs/current-milestone.md`。
+产品范围、工程约束和当前验收条件见 `docs/delivery/current-milestone.md`。

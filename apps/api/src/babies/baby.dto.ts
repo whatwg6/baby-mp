@@ -4,6 +4,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Length,
   Matches,
   Max,
@@ -133,4 +134,9 @@ export class UpdateBabyDto {
   @Min(0.2)
   @Max(300)
   birthWeightKg?: number | null
+
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  @IsOptional()
+  @IsUUID()
+  avatarMediaId?: string | null
 }

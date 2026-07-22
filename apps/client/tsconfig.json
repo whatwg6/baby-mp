@@ -2,6 +2,10 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@mock-login-boundary": ["src/features/auth/mock-login.disabled.tsx"]
+    },
     "types": ["@tarojs/taro", "vitest/globals"]
   },
   "include": ["src", "config"]

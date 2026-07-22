@@ -98,4 +98,60 @@ describe('API client', () => {
       header: expect.objectContaining({ Authorization: 'Bearer new-token' }),
     }))
   })
+
+  it('retries transient GET failures within the configured bound', async () => {
+    const transport = vi.fn<RequestTransport>()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({ statusCode: 503, data: {} })
+      .mockResolvedValueOnce({
+        statusCode: 200,
+        data: { data: { status: 'ok', version: '0.1.0' } },
+      })
+    const client = createApiClient('http://localhost:3000', transport, {
+      getRetryDelaysMs: [0, 0],
+    })
+
+    await expect(client.request({
+      path: '/api/v1/health',
+      schema: healthResponseSchema,
+    })).resolves.toMatchObject({ data: { status: 'ok' } })
+    expect(transport).toHaveBeenCalledTimes(3)
+  })
+
+  it('never automatically retries a write request', async () => {
+    const transport = vi.fn<RequestTransport>().mockRejectedValue(new Error('offline'))
+    const client = createApiClient('http://localhost:3000', transport, {
+      getRetryDelaysMs: [0, 0],
+    })
+
+    await expect(client.request({
+      path: '/api/v1/health',
+      method: 'POST',
+      schema: healthResponseSchema,
+    })).rejects.toMatchObject({ message: '无法连接服务，请检查网络后重试' })
+    expect(transport).toHaveBeenCalledTimes(1)
+  })
+
+  it('cancels an active request through AbortSignal without retrying it', async () => {
+    const transport = vi.fn<RequestTransport>().mockImplementation(({ signal }) =>
+      new Promise((_resolve, reject) => {
+        signal?.addEventListener('abort', () => {
+          const error = new Error('aborted')
+          error.name = 'AbortError'
+          reject(error)
+        }, { once: true })
+      }))
+    const controller = new AbortController()
+    const request = createApiClient('http://localhost:3000', transport, {
+      getRetryDelaysMs: [0, 0],
+    }).request({
+      path: '/api/v1/health',
+      schema: healthResponseSchema,
+      signal: controller.signal,
+    })
+
+    controller.abort()
+    await expect(request).rejects.toMatchObject({ message: '请求已取消' })
+    expect(transport).toHaveBeenCalledTimes(1)
+  })
 })

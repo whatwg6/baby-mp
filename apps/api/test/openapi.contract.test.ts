@@ -54,16 +54,19 @@ describe('M2 OpenAPI contract', () => {
       required: true,
       schema: expect.objectContaining({ format: 'uuid' }),
     }))
-    for (const method of ['get', 'patch'] as const) {
+    for (const method of ['get', 'patch', 'delete'] as const) {
       expect(item?.[method]?.parameters).toContainEqual(expect.objectContaining({
         in: 'path',
         name: 'babyId',
         required: true,
         schema: expect.objectContaining({ type: 'string', format: 'uuid' }),
       }))
-      expect(item?.[method]?.responses['200'])
-        .toHaveProperty('content.application/json.schema.$ref')
     }
+    expect(item?.get?.responses['200'])
+      .toHaveProperty('content.application/json.schema.$ref')
+    expect(item?.patch?.responses['200'])
+      .toHaveProperty('content.application/json.schema.$ref')
+    expect(item?.delete?.responses['204']).toBeDefined()
     expect(item?.patch?.requestBody)
       .toHaveProperty('content.application/json.schema.$ref')
     expect(collection?.get?.responses['200'])
@@ -84,5 +87,9 @@ describe('M2 OpenAPI contract', () => {
       CreateBabyDto: expect.any(Object),
       UpdateBabyDto: expect.any(Object),
     })
+    expect(schemas.UpdateBabyDto).toHaveProperty(
+      'properties.avatarMediaId',
+      expect.objectContaining({ format: 'uuid', nullable: true }),
+    )
   })
 })

@@ -1,16 +1,27 @@
 import { defineConfig, type UserConfigExport } from '@tarojs/cli'
-
+import { createHash } from 'node:crypto'
+import { resolve } from 'node:path'
 import { resolveClientApiBaseUrl } from './api-base-url'
 import devConfig from './dev'
 import prodConfig from './prod'
 
 const taroEnv = process.env.TARO_ENV ?? 'h5'
+const isDevelopment = process.env.NODE_ENV === 'development'
+const isE2eBuild = process.env.TARO_APP_E2E === 'true'
+const mockLoginEnabled = isDevelopment || isE2eBuild
 const outputRoot = `dist/${taroEnv}`
 const apiBaseUrl = resolveClientApiBaseUrl({
   explicitValue: process.env.TARO_APP_API_BASE_URL,
-  nodeEnv: process.env.NODE_ENV,
+  // E2E is an optimized static build, but it deliberately targets the local
+  // HTTP test API. Release builds never set TARO_APP_E2E and retain the HTTPS
+  // production gate below.
+  nodeEnv: isE2eBuild ? 'test' : process.env.NODE_ENV,
   taroEnv,
 })
+const cacheVariant = createHash('sha256')
+  .update(`${isE2eBuild ? 'e2e' : 'release'}\0${apiBaseUrl}`)
+  .digest('hex')
+  .slice(0, 12)
 
 const baseConfig: UserConfigExport = {
   projectName: 'baby-mp-client',
@@ -25,8 +36,15 @@ const baseConfig: UserConfigExport = {
   sourceRoot: 'src',
   outputRoot,
   framework: 'react',
+  alias: {
+    '@mock-login-boundary': resolve(
+      __dirname,
+      `../src/features/auth/mock-login.${mockLoginEnabled ? 'enabled' : 'disabled'}.tsx`,
+    ),
+  },
   env: {
     TARO_APP_API_BASE_URL: JSON.stringify(apiBaseUrl),
+    TARO_APP_E2E: JSON.stringify(isE2eBuild ? 'true' : 'false'),
   },
   compiler: {
     type: 'webpack5',
@@ -39,17 +57,30 @@ const baseConfig: UserConfigExport = {
   },
   cache: {
     enable: true,
+    // E2E is also an optimized production-mode H5 build. Include every
+    // compile-time security boundary in the filesystem cache key so its mock
+    // login and local API constants can never leak into release artifacts.
+    name: `${process.env.NODE_ENV}-${taroEnv}-${cacheVariant}`,
   },
   copy: {
     patterns:
       taroEnv === 'weapp'
         ? [
             {
-              from: 'config/weapp-project.config.json',
+              from: isDevelopment
+                ? 'config/weapp-project.dev.config.json'
+                : 'config/weapp-project.prod.config.json',
               to: `${outputRoot}/project.config.json`,
             },
           ]
-        : [],
+        : taroEnv === 'h5'
+          ? [
+              {
+                from: 'config/favicon.svg',
+                to: `${outputRoot}/favicon.svg`,
+              },
+            ]
+          : [],
     options: {},
   },
   mini: {
@@ -91,5 +122,5 @@ const baseConfig: UserConfigExport = {
 
 export default defineConfig<'webpack5'>(() => ({
   ...baseConfig,
-  ...(process.env.NODE_ENV === 'development' ? devConfig : prodConfig),
+  ...(isDevelopment ? devConfig : prodConfig),
 }))

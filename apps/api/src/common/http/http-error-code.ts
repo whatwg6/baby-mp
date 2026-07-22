@@ -14,6 +14,10 @@ export function errorCodeForStatus(status: number): ApiErrorCode {
       return 'RESOURCE_NOT_FOUND'
     case HttpStatus.CONFLICT:
       return 'IDEMPOTENCY_CONFLICT'
+    case HttpStatus.PAYLOAD_TOO_LARGE:
+      return 'VALIDATION_FAILED'
+    case HttpStatus.TOO_MANY_REQUESTS:
+      return 'RATE_LIMITED'
     default:
       return 'INTERNAL_ERROR'
   }

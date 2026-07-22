@@ -4,6 +4,7 @@ import { lastValueFrom, of, throwError } from 'rxjs'
 import { describe, expect, it, vi } from 'vitest'
 
 import { RequestLoggingInterceptor } from '../src/common/http/request-logging.interceptor'
+import { OperationalMetricsService } from '../src/common/observability/operational-metrics.service'
 import type { Environment } from '../src/config/environment'
 
 const secrets = {
@@ -18,7 +19,8 @@ function context(statusCode = 200): ExecutionContext {
   const request = {
     id: 'request-id-safe',
     method: 'POST',
-    path: '/auth/refresh',
+    path: '/auth/refresh/00000000-0000-4000-8000-000000000000',
+    route: { path: '/auth/refresh/:sessionId' },
     headers: { authorization: secrets.authorization },
     body: secrets,
   }
@@ -35,7 +37,7 @@ function interceptor() {
   const config = {
     get: vi.fn(() => 'test'),
   } as unknown as ConfigService<Environment, true>
-  return new RequestLoggingInterceptor(config)
+  return new RequestLoggingInterceptor(config, new OperationalMetricsService())
 }
 
 describe('RequestLoggingInterceptor', () => {
@@ -52,9 +54,10 @@ describe('RequestLoggingInterceptor', () => {
     expect(JSON.parse(output)).toMatchObject({
       message: 'request_completed',
       method: 'POST',
-      path: '/auth/refresh',
+      route: '/api/v1/auth/refresh/:sessionId',
       statusCode: 201,
     })
+    expect(output).not.toContain('00000000-0000-4000-8000-000000000000')
     for (const sentinel of Object.values(secrets)) expect(output).not.toContain(sentinel)
   })
 

@@ -23,11 +23,19 @@
     "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "verify:m2:api": "scripts/verify-m2-api.sh",
     "verify:m3:api": "scripts/verify-m3-api.sh",
+    "verify:m4:api": "scripts/verify-m4-api.sh",
+    "verify:m5:api": "scripts/verify-m5-api.sh",
+    "verify:m6:api": "scripts/verify-m6-api.sh",
+    "verify:m7:api": "scripts/verify-m7-api.sh",
+    "verify:artifacts": "scripts/verify-artifact-budget.sh",
     "db:generate": "pnpm --filter @baby-mp/api prisma:generate",
     "db:migrate": "pnpm --filter @baby-mp/api prisma:migrate",
     "db:deploy": "pnpm --filter @baby-mp/api prisma:deploy",
     "openapi:generate": "pnpm --filter @baby-mp/api openapi:generate",
-    "media:cleanup": "pnpm --filter @baby-mp/api media:cleanup"
+    "media:cleanup": "pnpm --filter @baby-mp/api media:cleanup",
+    "exports:worker": "pnpm --filter @baby-mp/api exports:worker",
+    "exports:cleanup": "pnpm --filter @baby-mp/api exports:cleanup",
+    "data-rights:transition": "pnpm --filter @baby-mp/api data-rights:transition"
   },
   "devDependencies": {
     "@eslint/js": "9.31.0",
@@ -35,5 +43,15 @@
     "globals": "16.3.0",
     "typescript": "5.8.3",
     "typescript-eslint": "8.37.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "esbuild": "0.25.12",
+      "fast-uri": "3.1.4",
+      "swiper": "12.1.2",
+      "uuid": "11.1.1",
+      "webpack": "5.94.0",
+      "webpack-dev-server": "5.2.6"
+    }
   }
 }

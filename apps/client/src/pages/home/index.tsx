@@ -5,11 +5,18 @@ import { useCallback, useEffect, useState } from 'react'
 import { PageState } from '../../components/PageState'
 import { useProtectedPage } from '../../features/auth/use-protected-page'
 import { formatBabyAge } from '../../features/babies/validation'
-import { getBabyContext, loadBabies, selectBaby, useBabyState } from '../../features/babies/store'
+import {
+  getBabyContext,
+  loadBabies,
+  refreshBabiesAfterAccessError,
+  selectBaby,
+  useBabyState,
+} from '../../features/babies/store'
 import { listRecords } from '../../features/records/api'
 import { RecordCard } from '../../features/records/RecordCard'
 import type { GrowthRecord, RecordType } from '../../features/records/types'
 import { platform } from '../../platform'
+import { isResourceAccessError } from '../../services/api-error'
 
 import './index.scss'
 
@@ -40,7 +47,11 @@ export default function HomePage() {
       if (!active || latest.babyId !== context.babyId || latest.generation !== context.generation) return
       setRecentRecords(page.data)
     }).catch((cause) => {
-      if (active) setRecentError(cause instanceof Error ? cause.message : '最近记录加载失败')
+      const latest = getBabyContext()
+      if (!active || latest.babyId !== context.babyId || latest.generation !== context.generation) return
+      if (isResourceAccessError(cause)) setRecentRecords([])
+      setRecentError(cause instanceof Error ? cause.message : '最近记录加载失败')
+      void refreshBabiesAfterAccessError(cause, babyId)
     }).finally(() => { if (active) setRecentLoading(false) })
     return () => { active = false }
   }, [babyId])
@@ -69,20 +80,30 @@ export default function HomePage() {
       {quickRecordTypes.map((item) => <Button key={item.type} onClick={() => void platform.navigateTo(`/pages/records/edit?type=${item.type}&babyId=${baby.id}&source=home`)}>{item.label}</Button>)}
     </View></View> : null}
     <View className="home-section"><Text className="section-title">最近记录</Text>
-      {recentLoading ? <PageState kind="loading" title="正在读取最近记录" /> : null}
-      {!recentLoading && recentError ? <PageState kind="error" title="最近记录加载失败" description={recentError} actionLabel="前往时间轴重试" onAction={() => void platform.switchTab('/pages/timeline/index')} /> : null}
-      {!recentLoading && !recentError && recentRecords.map((record) => <RecordCard key={record.id} record={record} onClick={() => void platform.navigateTo(`/pages/records/detail?id=${record.id}`)} />)}
-      {!recentLoading && !recentError && recentRecords.length > 0 ? <Button className="link-button" onClick={() => void platform.switchTab('/pages/timeline/index')}>查看全部记录</Button> : null}
-      {!recentLoading && !recentError && recentRecords.length === 0 ? <View className="surface-card first-record"><Text className="first-record__title">记录宝宝的第一个成长瞬间</Text>
-        <Text className="first-record__description">这里会展示最近的家庭成长记录。</Text>
-        {canEdit ? <Button className="secondary-button" onClick={() => void platform.navigateTo(`/pages/records/edit?babyId=${baby.id}&source=home`)}>添加第一条记录</Button> : null}
-      </View> : null}
+      <View className="home-recent-content">
+        {recentLoading
+          ? <PageState kind="loading" title="正在读取最近记录" />
+          : recentError
+            ? <PageState kind="error" title="最近记录加载失败" description={recentError} actionLabel="前往时间轴重试" onAction={() => void platform.switchTab('/pages/timeline/index')} />
+            : recentRecords.length > 0
+              ? <View className="home-recent-list">
+                {recentRecords.map((record) => <RecordCard key={record.id} record={record} onClick={() => void platform.navigateTo(`/pages/records/detail?id=${record.id}`)} />)}
+                <Button className="link-button" onClick={() => void platform.switchTab('/pages/timeline/index')}>查看全部记录</Button>
+              </View>
+              : <View className="surface-card first-record"><Text className="first-record__title">记录宝宝的第一个成长瞬间</Text>
+                <Text className="first-record__description">这里会展示最近的家庭成长记录。</Text>
+                {canEdit ? <Button className="secondary-button" onClick={() => void platform.navigateTo(`/pages/records/edit?babyId=${baby.id}&source=home`)}>添加第一条记录</Button> : null}
+              </View>}
+      </View>
     </View>
     {switcherOpen ? <View className="switcher-overlay" onClick={() => setSwitcherOpen(false)}><View className="switcher-panel" onClick={(event) => event.stopPropagation()}>
       <Text className="switcher-panel__title">切换宝宝</Text>
       {state.babies.map((item) => <View className={`switcher-item${item.id === baby.id ? ' is-current' : ''}`} key={item.id}
         onClick={() => void selectBaby(item.id).then(() => setSwitcherOpen(false))}>
-        <View><Text className="switcher-item__name">{item.name}</Text><Text className="switcher-item__role">{roleLabels[item.role]}</Text></View>
+        {item.avatarUrl
+          ? <Image className="switcher-item__avatar" src={item.avatarUrl} mode="aspectFill" lazyLoad />
+          : <View className="switcher-item__avatar switcher-item__avatar--fallback">宝</View>}
+        <View className="switcher-item__body"><Text className="switcher-item__name">{item.name}</Text><Text className="switcher-item__role">{roleLabels[item.role]}</Text></View>
         <Text>{item.id === baby.id ? '✓' : ''}</Text>
       </View>)}
       <Button className="secondary-button" onClick={() => {

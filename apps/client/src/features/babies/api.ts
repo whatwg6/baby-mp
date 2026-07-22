@@ -1,7 +1,7 @@
 import { babySchema, successResponseSchema } from '@baby-mp/contracts'
 
 import { createApiClient } from '../../services/api-client'
-import type { BabyInput } from './types'
+import type { BabyInput, BabyUpdateInput } from './types'
 
 const babyResponseSchema = successResponseSchema(babySchema)
 const babyListSchema = successResponseSchema(babySchema.array())
@@ -20,8 +20,18 @@ export async function createBaby(input: BabyInput, idempotencyKey: string) {
   })).data
 }
 
-export async function updateBaby(id: string, input: BabyInput & { version: number }) {
+export async function updateBaby(id: string, input: BabyUpdateInput) {
   return (await createApiClient().request({
     path: `/api/v1/babies/${id}`, method: 'PATCH', body: input, schema: babyResponseSchema,
   })).data
+}
+
+const emptySchema = { safeParse: () => ({ success: true as const, data: null }) }
+
+export async function deleteBaby(id: string) {
+  await createApiClient().request({
+    path: `/api/v1/babies/${id}`,
+    method: 'DELETE',
+    schema: emptySchema,
+  })
 }

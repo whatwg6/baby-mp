@@ -1,8 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
+  HttpCode,
+  HttpStatus,
   Inject,
   Param,
   ParseUUIDPipe,
@@ -22,6 +25,7 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiParam,
+  ApiNoContentResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger'
@@ -102,6 +106,22 @@ export class BabiesController {
     @Body() body: UpdateBabyDto,
   ): Promise<SuccessResponse<Baby>> {
     return { data: await this.babies.update(request.user!.id, babyId, body) }
+  }
+
+  @Delete(':babyId')
+  @ApiParam({ name: 'babyId', type: String, format: 'uuid', description: 'Baby identifier.' })
+  @ApiNoContentResponse({ description: 'Baby access stopped and soft deletion scheduled.' })
+  @ApiBadRequestResponse({ description: 'Baby identifier is not a UUID.', type: ApiErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Access token is missing or invalid.', type: ApiErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Baby does not exist, is not visible, or caller is not an admin.', type: ApiErrorResponseDto })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @RequireBabyRoles('admin')
+  @UseGuards(AuthenticationGuard, BabyMemberGuard)
+  async remove(
+    @Req() request: RequestWithContext,
+    @Param('babyId', ParseUUIDPipe) babyId: string,
+  ): Promise<void> {
+    await this.babies.remove(request.user!.id, babyId, request.requestId)
   }
 
 }

@@ -1,0 +1,25 @@
+@use '../../styles/tokens.scss' as *;
+
+.export-create { margin-bottom: $space-lg; }
+.export-create__title, .export-create__fixed { display: block; }
+.export-create__title { font-size: $font-lg; font-weight: 700; }
+.export-create__fixed { margin-top: $space-sm; color: $color-text-secondary; font-size: $font-sm; line-height: 1.6; }
+.export-create__option { display: flex; align-items: center; justify-content: space-between; gap: $space-md; margin: $space-lg 0; padding: $space-md 0; border-top: 1px solid $color-border; border-bottom: 1px solid $color-border; }
+.export-create__option text { display: block; }
+.export-create__option text + text { margin-top: $space-xs; color: $color-text-secondary; font-size: 12px; line-height: 1.5; }
+.exports-heading { margin: $space-xl 0 $space-md; font-size: $font-lg; font-weight: 700; }
+.exports-inline-error { display: flex; align-items: center; justify-content: space-between; gap: $space-sm; margin-bottom: $space-md; padding: $space-md; border-radius: $radius-sm; background: $color-primary-soft; color: $color-danger; font-size: $font-sm; }
+.exports-footer { display: block; padding: $space-md; color: $color-text-secondary; text-align: center; font-size: $font-sm; }
+.export-detail__status { margin-bottom: $space-lg; padding: $space-lg; border-radius: $radius-md; background: $color-primary-soft; color: $color-text-secondary; line-height: 1.6; }
+.export-detail__status-label { display: block; margin-bottom: $space-xs; color: $color-primary; font-size: $font-lg; font-weight: 700; }
+.export-detail__status--completed { background: rgba(52,120,90,.1); }
+.export-detail__status--completed .export-detail__status-label { color: $color-success; }
+.export-detail__status--failed, .export-detail__status--expired { background: rgba(179,69,69,.08); }
+.export-detail__status--failed .export-detail__status-label, .export-detail__status--expired .export-detail__status-label { color: $color-danger; }
+.export-detail__summary { margin-bottom: $space-lg; }
+.export-detail__summary > view { display: flex; justify-content: space-between; gap: $space-md; padding: $space-sm 0; border-bottom: 1px solid $color-border; }
+.export-detail__summary > view:last-child { border-bottom: 0; }
+.export-detail__summary > view > text:first-child { color: $color-text-secondary; }
+.export-detail__summary > view > text:last-child { text-align: right; }
+.export-detail__polling, .export-detail__privacy { display: block; margin: $space-md 0; color: $color-text-secondary; font-size: $font-sm; line-height: 1.6; }
+.export-detail__privacy { margin-top: $space-lg; padding: $space-md; border-radius: $radius-sm; background: $color-primary-soft; }

@@ -1,0 +1,11 @@
+@use '../../styles/tokens.scss' as *;
+
+.growth-chart { padding: $space-md; overflow: hidden; border: 1px solid $color-border; border-radius: $radius-md; background: $color-surface; }
+.growth-chart__scale { display: flex; justify-content: space-between; margin-bottom: $space-sm; color: $color-text-secondary; font-size: 12px; }
+.growth-chart__plot { position: relative; max-width: 100%; margin: 0 auto; border-bottom: 1px solid $color-border; background: repeating-linear-gradient(to bottom, transparent 0, transparent 43px, rgba(234,223,216,.65) 44px); }
+.growth-chart__line { position: absolute; z-index: 1; height: 2px; transform-origin: 0 50%; border-radius: 2px; background: $color-primary; }
+.growth-chart__point { position: absolute; z-index: 2; width: 32px; height: 32px; margin: -16px 0 0 -16px; border-radius: 50%; background: transparent; }
+.growth-chart__point::after { position: absolute; top: 11px; left: 11px; width: 10px; height: 10px; box-sizing: border-box; border: 2px solid $color-surface; border-radius: 50%; background: $color-primary; box-shadow: 0 0 0 1px $color-primary; content: ''; }
+.growth-chart__point.is-selected::after { top: 9px; left: 9px; width: 14px; height: 14px; background: $color-success; box-shadow: 0 0 0 2px rgba(52,120,90,.25); }
+.growth-chart__dates { display: flex; justify-content: space-between; margin-top: $space-sm; color: $color-text-secondary; font-size: 12px; }
+.growth-chart__single-note, .growth-chart__sample-note { display: block; margin-top: $space-sm; color: $color-text-secondary; font-size: 12px; line-height: 1.5; }

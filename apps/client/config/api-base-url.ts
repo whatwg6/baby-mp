@@ -44,7 +44,34 @@ export function resolveClientApiBaseUrl({
   interfaces = networkInterfaces(),
 }: ClientApiBaseUrlOptions): string {
   const configuredValue = explicitValue?.trim().replace(/\/+$/, '')
-  if (configuredValue) return configuredValue
+  if (configuredValue) {
+    let configuredUrl: URL
+    try {
+      configuredUrl = new URL(configuredValue)
+    } catch {
+      throw new Error('TARO_APP_API_BASE_URL must be a valid HTTP(S) origin')
+    }
+    if (
+      !['http:', 'https:'].includes(configuredUrl.protocol) ||
+      configuredUrl.username ||
+      configuredUrl.password ||
+      configuredUrl.pathname !== '/' ||
+      configuredUrl.search ||
+      configuredUrl.hash
+    ) {
+      throw new Error('TARO_APP_API_BASE_URL must be a valid HTTP(S) origin')
+    }
+    if (nodeEnv === 'production' && configuredUrl.protocol !== 'https:') {
+      throw new Error('TARO_APP_API_BASE_URL must use HTTPS for production client builds')
+    }
+    return configuredUrl.origin
+  }
+
+  if (nodeEnv === 'production') {
+    throw new Error(
+      'TARO_APP_API_BASE_URL is required for production client builds',
+    )
+  }
 
   if (nodeEnv !== 'development' || taroEnv !== 'weapp') return ''
 

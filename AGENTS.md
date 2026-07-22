@@ -30,7 +30,7 @@ Examples:
 
 For a status request:
 
-1. Perform read-only inspection of the actual repository, `docs/implementation-status.md`, and `docs/current-milestone.md`.
+1. Perform read-only inspection of the actual repository, `docs/delivery/implementation-status.md`, and `docs/delivery/current-milestone.md`.
 2. Do not trust status documents blindly; compare them with files, migrations, tests, and available verification evidence.
 3. Report what is complete, what is currently active, known blockers or risks, and one concrete recommended next step.
 4. Do not modify code, create tasks, or start implementation from a status request alone.
@@ -53,14 +53,14 @@ When authorized:
 1. Act as the Lead Agent.
 2. Resolve the current scope from the previous recommendation and project status documents.
 3. Plan the work, delegate safe parallel tasks, integrate changes, and verify the result.
-4. Update `docs/implementation-status.md` and `docs/current-milestone.md`.
+4. Update `docs/delivery/implementation-status.md` and `docs/delivery/current-milestone.md`.
 5. Report the outcome and recommend the next step.
 
 If there is no earlier recommendation in the conversation:
 
 - Resume an `In Progress` milestone.
 - Otherwise execute the `Ready` milestone.
-- If the current milestone is `Complete`, identify and prepare the next milestone from `docs/development-plan.md`, then execute it when “继续” or equivalent clearly authorizes moving forward.
+- If the current milestone is `Complete`, identify and prepare the next milestone from `docs/delivery/development-plan.md`, then execute it when “继续” or equivalent clearly authorizes moving forward.
 
 Do not respond to “你去做吧” with another planning burden for the user. Ask a question only if a documented `待确认` item materially changes the result and no safe default exists.
 
@@ -78,24 +78,24 @@ Keep the work read-only unless the user later authorizes implementation.
 
 Before implementation, read these files in order:
 
-1. `docs/current-milestone.md`
-2. `docs/implementation-status.md`
-3. `docs/developer-handoff.md`
-4. `docs/agent-workstreams.md`
+1. `docs/delivery/current-milestone.md`
+2. `docs/delivery/implementation-status.md`
+3. `docs/delivery/developer-handoff.md`
+4. `docs/delivery/agent-workstreams.md`
 
-Then read the task-specific documents listed in `docs/developer-handoff.md` and `docs/agent-workstreams.md`.
+Then read the task-specific documents listed in `docs/delivery/developer-handoff.md` and `docs/delivery/agent-workstreams.md`.
 
 ## Source of truth
 
 When documents differ, use this priority:
 
-1. `docs/current-milestone.md` for active scope and acceptance criteria.
-2. `docs/product-requirements.md` for product scope and business rules.
-3. `docs/information-architecture.md` and `docs/ui-specification.md` for user flows and UI behavior.
-4. `docs/api-specification.md` for HTTP behavior.
-5. `docs/data-model.md` for persistence rules.
-6. `docs/technical-architecture.md` and accepted ADRs for engineering boundaries.
-7. `docs/test-plan.md` for verification coverage.
+1. `docs/delivery/current-milestone.md` for active scope and acceptance criteria.
+2. `docs/product/product-requirements.md` for product scope and business rules.
+3. `docs/product/information-architecture.md` and `docs/product/ui-specification.md` for user flows and UI behavior.
+4. `docs/architecture/api-specification.md` for HTTP behavior.
+5. `docs/architecture/data-model.md` for persistence rules.
+6. `docs/architecture/technical-architecture.md` and accepted ADRs for engineering boundaries.
+7. `docs/quality/test-plan.md` for verification coverage.
 
 If a conflict remains, stop only the affected subtask, document the conflict, and continue any independent work that is safe.
 
@@ -109,7 +109,7 @@ If a conflict remains, stop only the affected subtask, document the conflict, an
 
 ## Parallel work
 
-- Follow `docs/agent-workstreams.md` for dependency order and recommended workstreams.
+- Follow `docs/delivery/agent-workstreams.md` for dependency order and recommended workstreams.
 - The lead agent owns the plan, delegation, integration, and final verification.
 - Assign a single owner for root configuration, lockfiles, Prisma schema/migration order, shared contract exports, global client routing, and Docker configuration.
 - Do not delegate overlapping edits to the same shared files.
@@ -129,10 +129,10 @@ If a conflict remains, stop only the affected subtask, document the conflict, an
 
 Before marking a milestone complete:
 
-1. Run the milestone commands in `docs/current-milestone.md`.
+1. Run the milestone commands in `docs/delivery/current-milestone.md`.
 2. Verify its acceptance checklist with evidence.
-3. Update `docs/implementation-status.md` with completed work, verification, known limitations, and next milestone readiness.
-4. Change the active milestone status to `complete` in `docs/current-milestone.md`.
+3. Update `docs/delivery/implementation-status.md` with completed work, verification, known limitations, and next milestone readiness.
+4. Change the active milestone status to `complete` in `docs/delivery/current-milestone.md`.
 5. Do not silently advance to the next milestone unless the user's request authorizes continued development.
 
 When reporting to the user, lead with the achieved outcome, verification results, remaining risks, and the next milestone. Do not make the user reconstruct status from sub-agent messages.

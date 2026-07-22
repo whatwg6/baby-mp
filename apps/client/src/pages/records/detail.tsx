@@ -1,13 +1,16 @@
 import { Button, Image, Text, View } from '@tarojs/components'
-import { useEffect, useState } from 'react'
+import { useDidShow } from '@tarojs/taro'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { PageState } from '../../components/PageState'
 import { useProtectedPage } from '../../features/auth/use-protected-page'
+import { loadBabies } from '../../features/babies/store'
 import { deleteRecord, getRecord } from '../../features/records/api'
 import { formatOccurredAt } from '../../features/records/RecordCard'
 import type { GrowthRecord } from '../../features/records/types'
 import { platform } from '../../platform'
+import { isResourceAccessError } from '../../services/api-error'
 
 import './records.scss'
 
@@ -21,17 +24,34 @@ export default function RecordDetailPage() {
   const [error, setError] = useState<string>()
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [showRevision, setShowRevision] = useState(0)
+  const requestRevision = useRef(0)
+
+  useDidShow(() => setShowRevision((value) => value + 1))
+
+  const load = useCallback(async () => {
+    if (!recordId) { setError('记录地址无效'); setLoading(false); return }
+    const revision = ++requestRevision.current
+    setLoading(true)
+    try {
+      const data = await getRecord(recordId)
+      if (revision !== requestRevision.current) return
+      setRecord(data)
+      setError(undefined)
+    } catch (cause) {
+      if (revision !== requestRevision.current) return
+      setRecord(undefined)
+      setError(cause instanceof Error ? cause.message : '记录加载失败')
+      if (isResourceAccessError(cause)) void loadBabies().catch(() => undefined)
+    } finally {
+      if (revision === requestRevision.current) setLoading(false)
+    }
+  }, [recordId])
 
   useEffect(() => {
-    if (!recordId) { setError('记录地址无效'); setLoading(false); return }
-    let active = true
-    getRecord(recordId).then((data) => {
-      if (active) { setRecord(data); setError(undefined); setLoading(false) }
-    }).catch((cause) => {
-      if (active) { setRecord(undefined); setError(cause instanceof Error ? cause.message : '记录加载失败'); setLoading(false) }
-    })
-    return () => { active = false }
-  }, [recordId])
+    void load()
+    return () => { requestRevision.current += 1 }
+  }, [load, showRevision])
 
   const remove = async () => {
     if (!record || deleting) return

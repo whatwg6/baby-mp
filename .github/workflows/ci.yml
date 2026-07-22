@@ -9,10 +9,14 @@ on:
 permissions:
   contents: read
 
+env:
+  PNPM_VERSION: 10.33.4
+  PLAYWRIGHT_VERSION: 1.54.1
+
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -20,7 +24,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10.33.4
+          version: ${{ env.PNPM_VERSION }}
           run_install: false
 
       - name: Set up Node.js
@@ -37,17 +41,264 @@ jobs:
           APP_ENV: test
           APP_VERSION: 0.1.0
           API_HOST: 127.0.0.1
-          API_PORT: 3000
-          CORS_ORIGINS: http://localhost:10086
-          DATABASE_URL: postgresql://baby_mp:baby_mp@localhost:5432/baby_mp_test?schema=public
+          API_PORT: 3300
+          CORS_ORIGINS: http://127.0.0.1:10086
+          DATABASE_URL: postgresql://baby_mp:baby_mp@127.0.0.1:5432/baby_mp_test?schema=public
           JWT_ACCESS_SECRET: ci-only-access-secret-not-for-production
           JWT_REFRESH_SECRET: ci-only-refresh-secret-not-for-production
           MOCK_AUTH_ENABLED: 'false'
-          S3_ENDPOINT: http://localhost:9000
+          S3_ENDPOINT: http://127.0.0.1:9000
           S3_REGION: local
           S3_BUCKET: baby-mp-test
           S3_ACCESS_KEY: ci-only-key
           S3_SECRET_KEY: ci-only-secret
           S3_FORCE_PATH_STYLE: 'true'
-          TARO_APP_API_BASE_URL: http://localhost:3000
+          TARO_APP_API_BASE_URL: https://api.example.invalid
         run: pnpm verify
+
+      - name: Enforce client artifact budgets
+        run: |
+          scripts/verify-artifact-budget.sh
+          pnpm --filter @baby-mp/client check:release-artifacts
+
+      - name: Detect OpenAPI drift
+        env:
+          APP_ENV: test
+          DATABASE_URL: postgresql://baby_mp:baby_mp@127.0.0.1:5432/baby_mp_test?schema=public
+          JWT_ACCESS_SECRET: ci-only-access-secret-not-for-production
+          JWT_REFRESH_SECRET: ci-only-refresh-secret-not-for-production
+          S3_ENDPOINT: http://127.0.0.1:9000
+          S3_ACCESS_KEY: ci-only-key
+          S3_SECRET_KEY: ci-only-secret
+        run: |
+          pnpm openapi:generate
+          git diff --exit-code -- apps/api/openapi/openapi.json
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:16.9-alpine
+        env:
+          POSTGRES_DB: baby_mp_test
+          POSTGRES_USER: baby_mp
+          POSTGRES_PASSWORD: baby-mp-ci-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U baby_mp -d baby_mp_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      APP_ENV: test
+      APP_VERSION: 0.1.0
+      API_HOST: 127.0.0.1
+      API_PORT: 3300
+      CORS_ORIGINS: http://127.0.0.1:10086
+      DATABASE_URL: postgresql://baby_mp:baby-mp-ci-password@127.0.0.1:5432/baby_mp_test?schema=public
+      JWT_ACCESS_SECRET: ci-integration-access-secret
+      JWT_REFRESH_SECRET: ci-integration-refresh-secret
+      MOCK_AUTH_ENABLED: 'true'
+      RATE_LIMIT_LOGIN_MAX: 100
+      S3_ENDPOINT: http://127.0.0.1:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: baby-mp-ci
+      S3_ACCESS_KEY: baby-mp-ci
+      S3_SECRET_KEY: baby-mp-ci-secret
+      S3_FORCE_PATH_STYLE: 'true'
+      M3_STORAGE_URL: http://127.0.0.1:9000
+      M3_STORAGE_BUCKET: baby-mp-ci
+      M5_API_BASE_URL: http://127.0.0.1:3300/api/v1
+      M6_STORAGE_URL: http://127.0.0.1:9000
+      TARO_APP_API_BASE_URL: http://127.0.0.1:3300
+      H5_BASE_URL: http://127.0.0.1:10086
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start MinIO service
+        run: |
+          docker run --detach --rm --name baby-mp-ci-minio \
+            --publish 9000:9000 \
+            --env MINIO_ROOT_USER="${S3_ACCESS_KEY}" \
+            --env MINIO_ROOT_PASSWORD="${S3_SECRET_KEY}" \
+            --health-cmd "curl --fail http://127.0.0.1:9000/minio/health/live" \
+            --health-interval 5s \
+            --health-timeout 3s \
+            --health-retries 20 \
+            minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+          for attempt in $(seq 1 30); do
+            status="$(docker inspect --format '{{.State.Health.Status}}' baby-mp-ci-minio)"
+            if [ "$status" = healthy ]; then exit 0; fi
+            if [ "$status" = unhealthy ]; then
+              docker logs baby-mp-ci-minio
+              exit 1
+            fi
+            sleep 2
+          done
+          echo 'MinIO did not become healthy in time' >&2
+          exit 1
+
+      - name: Generate Prisma client and deploy empty database
+        run: |
+          pnpm db:generate
+          pnpm db:deploy
+
+      - name: Create private object-storage bucket
+        run: scripts/prepare-ci-s3.sh
+
+      - name: Build API
+        run: |
+          pnpm contracts:build
+          pnpm --filter @baby-mp/api build
+
+      - name: Run real API and worker smoke tests
+        env:
+          M5_PSQL_CONTAINER: ${{ job.services.postgres.id }}
+          M5_POSTGRES_USER: baby_mp
+          M5_POSTGRES_DB: baby_mp_test
+          M6_PSQL_CONTAINER: ${{ job.services.postgres.id }}
+          M6_POSTGRES_USER: baby_mp
+          M6_POSTGRES_DB: baby_mp_test
+          M7_PSQL_CONTAINER: ${{ job.services.postgres.id }}
+          M7_POSTGRES_USER: baby_mp
+          M7_POSTGRES_DB: baby_mp_test
+        run: scripts/verify-ci-integration.sh
+
+      - name: Stop MinIO service
+        if: always()
+        run: docker stop baby-mp-ci-minio >/dev/null 2>&1 || true
+
+  h5-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16.9-alpine
+        env:
+          POSTGRES_DB: baby_mp_e2e
+          POSTGRES_USER: baby_mp
+          POSTGRES_PASSWORD: baby-mp-e2e-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U baby_mp -d baby_mp_e2e"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      APP_ENV: test
+      APP_VERSION: 0.1.0
+      API_HOST: 127.0.0.1
+      API_PORT: 3300
+      CORS_ORIGINS: http://127.0.0.1:10086
+      DATABASE_URL: postgresql://baby_mp:baby-mp-e2e-password@127.0.0.1:5432/baby_mp_e2e?schema=public
+      JWT_ACCESS_SECRET: ci-e2e-access-secret
+      JWT_REFRESH_SECRET: ci-e2e-refresh-secret
+      MOCK_AUTH_ENABLED: 'true'
+      S3_ENDPOINT: http://127.0.0.1:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: baby-mp-e2e
+      S3_ACCESS_KEY: baby-mp-e2e
+      S3_SECRET_KEY: baby-mp-e2e-secret
+      S3_FORCE_PATH_STYLE: 'true'
+      TARO_APP_API_BASE_URL: http://127.0.0.1:3300
+      H5_BASE_URL: http://127.0.0.1:10086
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start private MinIO service
+        run: |
+          docker run --detach --rm --name baby-mp-e2e-minio \
+            --publish 9000:9000 \
+            --env MINIO_ROOT_USER="${S3_ACCESS_KEY}" \
+            --env MINIO_ROOT_PASSWORD="${S3_SECRET_KEY}" \
+            --health-cmd "curl --fail http://127.0.0.1:9000/minio/health/live" \
+            --health-interval 5s \
+            --health-timeout 3s \
+            --health-retries 20 \
+            minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+          for attempt in $(seq 1 30); do
+            status="$(docker inspect --format '{{.State.Health.Status}}' baby-mp-e2e-minio)"
+            if [ "$status" = healthy ]; then exit 0; fi
+            if [ "$status" = unhealthy ]; then
+              docker logs baby-mp-e2e-minio
+              exit 1
+            fi
+            sleep 2
+          done
+          echo 'MinIO did not become healthy in time' >&2
+          exit 1
+
+      - name: Deploy fresh E2E database
+        run: |
+          pnpm db:generate
+          pnpm db:deploy
+
+      - name: Create private E2E object-storage bucket
+        run: scripts/prepare-ci-s3.sh
+
+      - name: Build API and test-enabled H5 application
+        run: |
+          pnpm contracts:build
+          pnpm --filter @baby-mp/api build
+          pnpm --filter @baby-mp/client build:h5:e2e
+
+      - name: Install isolated Playwright runtime
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/ms-playwright
+        run: |
+          npm install --prefix "${RUNNER_TEMP}/baby-mp-playwright" --no-save --package-lock=false "@playwright/test@${PLAYWRIGHT_VERSION}"
+          "${RUNNER_TEMP}/baby-mp-playwright/node_modules/.bin/playwright" install --with-deps chromium
+
+      - name: Run H5 core Playwright journey
+        env:
+          NODE_PATH: ${{ runner.temp }}/baby-mp-playwright/node_modules
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/ms-playwright
+        run: scripts/run-h5-e2e.sh
+
+      - name: Upload Playwright diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: h5-playwright-diagnostics
+          path: e2e/output/playwright/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Stop E2E MinIO service
+        if: always()
+        run: docker stop baby-mp-e2e-minio >/dev/null 2>&1 || true

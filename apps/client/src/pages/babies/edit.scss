@@ -1,0 +1,12 @@
+@use '../../styles/tokens.scss' as *;
+
+.danger-zone {
+  margin-top: $space-xl;
+  border-color: $color-danger;
+}
+
+.danger-button {
+  margin-top: $space-md;
+  background: $color-danger;
+  color: white;
+}

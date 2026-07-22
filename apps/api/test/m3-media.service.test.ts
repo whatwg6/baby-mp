@@ -287,6 +287,7 @@ describe('M3 MediaService cleanup and low-sensitivity logging', () => {
       records: { none: {} },
       userAvatars: { none: {} },
       babyAvatars: { none: {} },
+      exportResults: { none: {} },
     }, take: 100 })
     expect(count).toBe(1)
     expect(prisma.media.update).toHaveBeenCalledTimes(1)

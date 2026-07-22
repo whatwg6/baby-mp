@@ -14,6 +14,7 @@ import {
 import type { SuccessResponse } from '@baby-mp/contracts'
 
 import type { RequestWithContext } from '../common/http/request-context'
+import { RateLimit } from '../common/security/rate-limit.decorator'
 import { AuthenticationGuard } from './authentication.guard'
 import { AuthService } from './auth.service'
 import {
@@ -31,6 +32,7 @@ export class AuthController {
   constructor(@Inject(AuthService) private readonly auth: AuthService) {}
 
   @Post('auth/platform-login')
+  @RateLimit('login')
   @ApiBody({ type: PlatformLoginDto })
   @ApiCreatedResponse({ description: 'Authenticated session.', type: AuthSessionResponseDto })
   @ApiBadRequestResponse({ description: 'Invalid platform or credential.', type: ApiErrorResponseDto })
@@ -40,6 +42,7 @@ export class AuthController {
   }
 
   @Post('auth/mock-login')
+  @RateLimit('login')
   @ApiBody({ type: MockLoginDto })
   @ApiCreatedResponse({ description: 'Authenticated local test session.', type: AuthSessionResponseDto })
   @ApiBadRequestResponse({ description: 'Invalid mock login input.', type: ApiErrorResponseDto })

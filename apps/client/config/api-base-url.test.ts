@@ -38,14 +38,38 @@ describe('client API build configuration', () => {
     ).toBe('http://192.168.0.140:3000')
   })
 
-  it('does not infer an API origin for production or non-WeChat builds', () => {
+  it('rejects missing production API origins and does not infer non-WeChat development origins', () => {
     const interfaces = { en0: [ipv4('192.168.0.140')] }
 
-    expect(
+    expect(() =>
       resolveClientApiBaseUrl({ nodeEnv: 'production', taroEnv: 'weapp', interfaces }),
-    ).toBe('')
+    ).toThrow('TARO_APP_API_BASE_URL is required')
     expect(
       resolveClientApiBaseUrl({ nodeEnv: 'development', taroEnv: 'h5', interfaces }),
     ).toBe('')
+  })
+
+  it('rejects insecure or malformed production API origins', () => {
+    for (const explicitValue of [
+      'http://api.example.com',
+      'api.example.com',
+      'https://user:secret@api.example.com',
+      'https://api.example.com/api',
+      'https://api.example.com?token=value',
+    ]) {
+      expect(() => resolveClientApiBaseUrl({
+        explicitValue,
+        nodeEnv: 'production',
+        taroEnv: 'weapp',
+      })).toThrow(/valid HTTP\(S\) origin|must use HTTPS/)
+    }
+  })
+
+  it('allows an explicit local HTTP origin only for development builds', () => {
+    expect(resolveClientApiBaseUrl({
+      explicitValue: 'http://127.0.0.1:3300/',
+      nodeEnv: 'development',
+      taroEnv: 'h5',
+    })).toBe('http://127.0.0.1:3300')
   })
 })

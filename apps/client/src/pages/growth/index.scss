@@ -1,0 +1,34 @@
+@use '../../styles/tokens.scss' as *;
+
+.growth-baby { display: flex; align-items: center; justify-content: space-between; margin-bottom: $space-md; padding: $space-md; border: 1px solid $color-border; border-radius: $radius-md; background: $color-surface; }
+.growth-baby__label, .growth-baby__name { display: block; }
+.growth-baby__label { color: $color-text-secondary; font-size: 12px; }
+.growth-baby__name { margin-top: $space-xs; font-weight: 700; }
+.growth-segments { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: $space-md; padding: 4px; border-radius: $radius-sm; background: $color-primary-soft; }
+.growth-segments button { height: 40px; margin: 0; border-radius: 6px; background: transparent; color: $color-text-secondary; font-size: $font-md; line-height: 40px; }
+.growth-segments button.is-active { background: $color-surface; color: $color-primary; font-weight: 700; box-shadow: 0 2px 8px rgba(48,45,43,.08); }
+.growth-range { display: flex; align-items: center; justify-content: space-between; margin-bottom: $space-lg; color: $color-text-secondary; font-size: $font-sm; }
+.growth-range > view { display: flex; gap: $space-sm; }
+.growth-range button { margin: 0; border: 1px solid $color-border; background: $color-surface; color: $color-text-secondary; }
+.growth-range button.is-active { border-color: $color-primary; color: $color-primary; }
+.growth-fallback-note { display: block; margin-bottom: $space-md; color: $color-text-secondary; font-size: $font-sm; }
+.growth-selected { display: flex; align-items: center; justify-content: space-between; margin-top: $space-md; padding: $space-md; border-radius: $radius-sm; background: $color-primary-soft; }
+.growth-selected__value, .growth-selected__date { display: block; }
+.growth-selected__value { color: $color-primary; font-size: $font-lg; font-weight: 700; }
+.growth-selected__date { margin-top: $space-xs; color: $color-text-secondary; font-size: $font-sm; }
+.growth-chart-hint { display: block; margin: $space-sm 0; color: $color-text-secondary; text-align: center; font-size: 12px; }
+.growth-history__heading { display: flex; align-items: center; justify-content: space-between; margin: $space-xl 0 $space-md; font-size: $font-lg; font-weight: 700; }
+.growth-history__heading button { margin: 0; color: $color-primary; }
+.growth-history { overflow: hidden; border: 1px solid $color-border; border-radius: $radius-md; background: $color-surface; }
+.growth-history__item { display: flex; align-items: center; justify-content: space-between; padding: $space-md; border-bottom: 1px solid $color-border; }
+.growth-history__item:last-child { border-bottom: 0; }
+.growth-history__item > view { display: flex; align-items: center; gap: $space-sm; }
+.growth-history__value { font-weight: 700; }
+.growth-history__arrow { color: $color-text-secondary; font-size: $font-lg; }
+.growth-medical-note { display: block; margin-top: $space-lg; padding: $space-md; border-radius: $radius-sm; background: $color-primary-soft; color: $color-text-secondary; font-size: $font-sm; line-height: 1.6; }
+.growth-inline-error { display: flex; align-items: center; justify-content: space-between; margin-top: $space-md; padding: $space-md; border-radius: $radius-sm; background: $color-primary-soft; color: $color-danger; }
+.growth-switcher-overlay { position: fixed; inset: 0; z-index: 20; display: flex; align-items: flex-end; background: $color-overlay; }
+.growth-switcher { width: 100%; padding: $space-lg $space-md calc($space-lg + env(safe-area-inset-bottom)); border-radius: $radius-md $radius-md 0 0; background: $color-surface; }
+.growth-switcher__title { display: block; margin-bottom: $space-md; font-size: $font-lg; font-weight: 700; }
+.growth-switcher__item { display: flex; justify-content: space-between; padding: $space-md 0; border-bottom: 1px solid $color-border; }
+.growth-switcher__item.is-current { color: $color-primary; font-weight: 700; }

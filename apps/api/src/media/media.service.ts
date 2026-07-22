@@ -11,7 +11,7 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common'
-import { MediaStatus, MemberRole, MemberStatus, Prisma, type Media as PrismaMedia } from '@prisma/client'
+import { MediaPurpose, MediaStatus, MemberRole, MemberStatus, Prisma, type Media as PrismaMedia } from '@prisma/client'
 import sharp from 'sharp'
 
 import type { Media, MediaUploadResponse } from '@baby-mp/contracts'
@@ -190,6 +190,7 @@ export class MediaService {
         records: { none: {} },
         userAvatars: { none: {} },
         babyAvatars: { none: {} },
+        exportResults: { none: {} },
       },
       take: 100,
     })
@@ -223,7 +224,9 @@ export class MediaService {
   }
 
   private async findAuthorized(userId: string, mediaId: string): Promise<PrismaMedia> {
-    const media = await this.prisma.media.findFirst({ where: { id: mediaId, deletedAt: null } })
+    const media = await this.prisma.media.findFirst({
+      where: { id: mediaId, deletedAt: null, purpose: MediaPurpose.record_image },
+    })
     if (!media || !await this.activeMembership(userId, media.babyId)) throw new NotFoundException('资源不存在')
     return media
   }
@@ -246,12 +249,14 @@ export class MediaService {
       const media = await tx.media.findFirst({
         where: {
           id: mediaId,
+          purpose: MediaPurpose.record_image,
           createdAt: { lt: cutoff },
           deletedAt: null,
           status: { in: [MediaStatus.pending, MediaStatus.uploaded, MediaStatus.failed, MediaStatus.ready] },
           records: { none: {} },
           userAvatars: { none: {} },
           babyAvatars: { none: {} },
+          exportResults: { none: {} },
         },
       })
       if (!media) return null
@@ -265,7 +270,9 @@ export class MediaService {
 
   private claimForAbandon(userId: string, mediaId: string): Promise<PrismaMedia> {
     return this.prisma.$transaction(async (tx) => {
-      const media = await tx.media.findFirst({ where: { id: mediaId, deletedAt: null } })
+      const media = await tx.media.findFirst({
+        where: { id: mediaId, deletedAt: null, purpose: MediaPurpose.record_image },
+      })
       if (!media) throw new NotFoundException('资源不存在')
       const membership = await tx.babyMember.findFirst({
         where: {

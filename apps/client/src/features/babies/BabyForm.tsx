@@ -1,7 +1,10 @@
-import { Button, Input, Picker, Text, View } from '@tarojs/components'
+import { Button, Image, Input, Picker, Text, View } from '@tarojs/components'
 import { useMemo, useState } from 'react'
 
 import type { BabyGender } from './types'
+import { chooseMediaDrafts } from '../media/upload'
+import type { MediaDraft } from '../media/types'
+import { platform } from '../../platform'
 import {
   formatLocalDate, toBabyInput, validateBabyForm,
   type BabyFormErrors, type BabyFormValues,
@@ -18,6 +21,9 @@ export interface BabyFormProps {
   submitLabel: string
   loading?: boolean
   error?: string
+  avatar?: MediaDraft
+  avatarUrl?: string | null
+  onAvatarChange?: (avatar?: MediaDraft) => void
   onSubmit: (input: ReturnType<typeof toBabyInput>) => Promise<void>
 }
 
@@ -25,7 +31,16 @@ const blankValues: BabyFormValues = {
   name: '', gender: 'unspecified', birthDate: '', birthTime: '', birthHeightCm: '', birthWeightKg: '',
 }
 
-export function BabyForm({ initialValues, submitLabel, loading = false, error, onSubmit }: BabyFormProps) {
+export function BabyForm({
+  initialValues,
+  submitLabel,
+  loading = false,
+  error,
+  avatar,
+  avatarUrl,
+  onAvatarChange,
+  onSubmit,
+}: BabyFormProps) {
   const [values, setValues] = useState<BabyFormValues>({ ...blankValues, ...initialValues })
   const [errors, setErrors] = useState<BabyFormErrors>({})
   const today = useMemo(() => formatLocalDate(), [])
@@ -42,9 +57,31 @@ export function BabyForm({ initialValues, submitLabel, loading = false, error, o
     await onSubmit(toBabyInput(values))
   }
 
+  const chooseAvatar = async () => {
+    try {
+      const [selected] = await chooseMediaDrafts(1)
+      if (selected) onAvatarChange?.(selected)
+    } catch (reason) {
+      await platform.showToast(reason instanceof Error ? reason.message : '选择头像失败')
+    }
+  }
+
+  const avatarSource = avatar?.localPath || avatar?.accessUrl || avatarUrl
+
   return (
     <View className="baby-form">
-      <View className="baby-form__avatar">宝</View>
+      <View className="baby-form__avatar-field">
+        {avatarSource
+          ? <Image className="baby-form__avatar" src={avatarSource} mode="aspectFill" lazyLoad />
+          : <View className="baby-form__avatar baby-form__avatar--fallback">宝</View>}
+        <Button className="link-button baby-form__avatar-action" disabled={loading}
+          onClick={() => void chooseAvatar()}>
+          {avatarSource ? '更换头像' : '选择头像（选填）'}
+        </Button>
+        {avatar?.state === 'compressing' ? <Text className="baby-form__avatar-status">正在压缩头像…</Text> : null}
+        {avatar?.state === 'uploading' ? <Text className="baby-form__avatar-status">头像上传 {avatar.progress > 0 ? `${avatar.progress}%` : '中…'}</Text> : null}
+        {avatar?.state === 'failed' ? <Text className="form-field__error">{avatar.error ?? '头像上传失败，可重试'}</Text> : null}
+      </View>
       <View className="form-field">
         <Text className="form-field__label">宝宝昵称 *</Text>
         <Input value={values.name} maxlength={40} placeholder="请输入昵称" onInput={(event) => update('name', event.detail.value)} />

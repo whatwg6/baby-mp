@@ -6,13 +6,14 @@ import {
   BABY_RESOURCE_RESOLVER,
 } from '../families/authorization/baby-authorization.port'
 import { BabyMemberGuard } from '../families/authorization/baby-member.guard'
+import { MediaModule } from '../media/media.module'
 import { PrismaBabyMembershipRepository } from './baby-authorization.repository'
 import { RouteBabyResourceResolver } from './baby-resource.resolver'
 import { BabiesController } from './babies.controller'
 import { BabiesService } from './babies.service'
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, MediaModule],
   controllers: [BabiesController],
   providers: [
     BabiesService,

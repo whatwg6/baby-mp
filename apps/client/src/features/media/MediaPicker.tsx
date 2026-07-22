@@ -49,7 +49,7 @@ export function MediaPicker({ items, disabled = false, onChange, onRetry }: Medi
     <View className="media-picker__grid">
       {items.map((item, index) => <View className="media-picker__item" key={item.localId}>
         <Image className="media-picker__image" src={item.accessUrl || item.localPath || ''} mode="aspectFill" onClick={() => preview(item)} />
-        {item.state === 'uploading' || item.state === 'compressing' ? <View className="media-picker__status"><Text>{item.state === 'compressing' ? '压缩中' : `${item.progress}%`}</Text></View> : null}
+        {item.state === 'uploading' || item.state === 'compressing' ? <View className="media-picker__status"><Text>{item.state === 'compressing' ? '压缩中' : item.progress > 0 ? `${item.progress}%` : '上传中'}</Text></View> : null}
         {item.state === 'failed' ? <View className="media-picker__status media-picker__status--error"><Text>上传失败</Text></View> : null}
         <View className="media-picker__actions">
           <Button size="mini" disabled={disabled || index === 0} onClick={() => move(index, -1)}>←</Button>
