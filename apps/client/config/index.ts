@@ -2,6 +2,7 @@ import { defineConfig, type UserConfigExport } from '@tarojs/cli'
 import { createHash } from 'node:crypto'
 import { resolve } from 'node:path'
 import { resolveClientApiBaseUrl } from './api-base-url'
+import { resolveClientOutputRoot } from './build-output'
 import devConfig from './dev'
 import prodConfig from './prod'
 
@@ -9,7 +10,11 @@ const taroEnv = process.env.TARO_ENV ?? 'h5'
 const isDevelopment = process.env.NODE_ENV === 'development'
 const isE2eBuild = process.env.TARO_APP_E2E === 'true'
 const mockLoginEnabled = isDevelopment || isE2eBuild
-const outputRoot = `dist/${taroEnv}`
+// Keep the optimized test build physically separate from release artifacts.
+// Both variants are production-mode H5 bundles with different compile-time
+// authentication and API-origin boundaries; sharing dist/h5 makes a local E2E
+// run silently replace the last release candidate.
+const outputRoot = resolveClientOutputRoot(taroEnv, isE2eBuild)
 const apiBaseUrl = resolveClientApiBaseUrl({
   explicitValue: process.env.TARO_APP_API_BASE_URL,
   // E2E is an optimized static build, but it deliberately targets the local

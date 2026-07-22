@@ -48,6 +48,24 @@ describe('baby context store', () => {
     await selecting
   })
 
+  it('invalidates every baby-scoped main-page request when the shared switcher changes baby', async () => {
+    listBabiesMock.mockResolvedValue([babyA, babyB])
+    const store = await import('./store')
+    await store.loadBabies()
+    const homeRequest = store.getBabyContext()
+    const timelineRequest = store.getBabyContext()
+    const growthRequest = store.getBabyContext()
+
+    await store.selectBaby(babyB.id)
+
+    const latest = store.getBabyContext()
+    expect(latest.babyId).toBe(babyB.id)
+    for (const request of [homeRequest, timelineRequest, growthRequest]) {
+      expect(request.babyId).toBe(babyA.id)
+      expect(request.generation).not.toBe(latest.generation)
+    }
+  })
+
   it('discards a stale list response after the user switches baby', async () => {
     listBabiesMock.mockResolvedValueOnce([babyA, babyB])
     const store = await import('./store')

@@ -19,16 +19,16 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
         with:
           version: ${{ env.PNPM_VERSION }}
           run_install: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -56,10 +56,18 @@ jobs:
           TARO_APP_API_BASE_URL: https://api.example.invalid
         run: pnpm verify
 
-      - name: Enforce client artifact budgets
-        run: |
-          scripts/verify-artifact-budget.sh
-          pnpm --filter @baby-mp/client check:release-artifacts
+      - name: Verify release artifact budgets and security boundaries
+        env:
+          CI: 'true'
+          ALLOW_TEST_RELEASE_API_ORIGIN: 'true'
+          EXPECTED_RELEASE_API_ORIGIN: https://api.example.invalid
+        run: pnpm verify:artifacts
+
+      - name: Verify runtime configuration preflight
+        run: scripts/verify-runtime-preflight.sh
+
+      - name: Require complete P0/P1 automation traceability
+        run: node scripts/verify-test-traceability.mjs --require-covered
 
       - name: Detect OpenAPI drift
         env:
@@ -116,16 +124,16 @@ jobs:
       H5_BASE_URL: http://127.0.0.1:10086
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
         with:
           version: ${{ env.PNPM_VERSION }}
           run_install: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -164,6 +172,13 @@ jobs:
       - name: Create private object-storage bucket
         run: scripts/prepare-ci-s3.sh
 
+      - name: Verify private object storage and signed URL expiry
+        env:
+          AWS_ACCESS_KEY_ID: baby-mp-ci
+          AWS_SECRET_ACCESS_KEY: baby-mp-ci-secret
+          S3_PRIVATE_PROBE_KEY: operations/private-probe.txt
+        run: scripts/verify-s3-operations.sh
+
       - name: Build API
         run: |
           pnpm contracts:build
@@ -181,6 +196,25 @@ jobs:
           M7_POSTGRES_USER: baby_mp
           M7_POSTGRES_DB: baby_mp_test
         run: scripts/verify-ci-integration.sh
+
+      - name: Install PostgreSQL client for restore rehearsal
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install --yes postgresql-client
+          fi
+
+      - name: Rehearse backup, restore, forward migration, and API readiness
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: '5432'
+          PGDATABASE: baby_mp_test
+          PGUSER: baby_mp
+          PGPASSWORD: baby-mp-ci-password
+          REHEARSAL_CONFIRM: CREATE_AND_DROP_DISPOSABLE_DATABASE
+          REHEARSAL_SOURCE_QUIESCED: 'YES'
+          RESTORE_SMOKE_API_PORT: '3499'
+        run: scripts/verify-postgres-backup-restore.sh
 
       - name: Stop MinIO service
         if: always()
@@ -213,6 +247,10 @@ jobs:
       JWT_ACCESS_SECRET: ci-e2e-access-secret
       JWT_REFRESH_SECRET: ci-e2e-refresh-secret
       MOCK_AUTH_ENABLED: 'true'
+      # The nine serial journeys create distinct users and intentionally log
+      # in through both API fixtures and the browser. Keep production defaults
+      # strict while preventing the shared CI source IP from coupling tests.
+      RATE_LIMIT_LOGIN_MAX: 100
       S3_ENDPOINT: http://127.0.0.1:9000
       S3_REGION: us-east-1
       S3_BUCKET: baby-mp-e2e
@@ -223,16 +261,16 @@ jobs:
       H5_BASE_URL: http://127.0.0.1:10086
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
         with:
           version: ${{ env.PNPM_VERSION }}
           run_install: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -292,7 +330,7 @@ jobs:
 
       - name: Upload Playwright diagnostics on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: h5-playwright-diagnostics
           path: e2e/output/playwright/
@@ -302,3 +340,57 @@ jobs:
       - name: Stop E2E MinIO service
         if: always()
         run: docker stop baby-mp-e2e-minio >/dev/null 2>&1 || true
+
+  runtime-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      RUNTIME_IMAGE: baby-mp:ci
+      APP_ENV: staging
+      APP_VERSION: ci-runtime-audit
+      BABY_MP_IMAGE_REF: baby-mp@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      API_HOST: 0.0.0.0
+      API_PORT: '3000'
+      TRUST_PROXY: 'false'
+      JSON_BODY_LIMIT_BYTES: '262144'
+      SWAGGER_ENABLED: 'false'
+      INTERNAL_MONITORING_TOKEN: ci-runtime-monitoring-token-1234567890
+      BUSINESS_TIME_ZONE: Asia/Shanghai
+      CORS_ORIGINS: https://app.ci.example
+      DATABASE_URL: postgresql://ci:ci@db.ci.example:5432/baby
+      JWT_ACCESS_SECRET: ci-runtime-access-secret
+      JWT_REFRESH_SECRET: ci-runtime-refresh-secret
+      MOCK_AUTH_ENABLED: 'false'
+      WECHAT_APP_ID: wx433aecb90d44e9fe
+      WECHAT_APP_SECRET: ci-runtime-wechat-secret
+      WECHAT_CODE2SESSION_URL: https://api.weixin.qq.com/sns/jscode2session
+      S3_ENDPOINT: https://s3.ci.example
+      S3_REGION: ci-region
+      S3_BUCKET: baby-mp-ci-runtime
+      S3_ACCESS_KEY: ci-runtime-access-key
+      S3_SECRET_KEY: ci-runtime-storage-secret
+      S3_FORCE_PATH_STYLE: 'false'
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Build production runtime image
+        run: docker build --tag "$RUNTIME_IMAGE" .
+
+      - name: Verify runtime image contents and preflight
+        run: |
+          test "$(docker image inspect "$RUNTIME_IMAGE" --format '{{.Config.User}}')" = node
+          scripts/verify-runtime-image.sh
+
+      - name: Verify runtime compose renders all required services
+        env:
+          BABY_MP_IMAGE: baby-mp@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        run: |
+          deploy/runtime-compose.sh --preflight-only
+          services="$(deploy/runtime-compose.sh --profile migration config --services | sort)"
+          expected="$(printf '%s\n' api export-worker media-cleanup migrate | sort)"
+          test "$services" = "$expected"
+          if BABY_MP_IMAGE=baby-mp:latest deploy/runtime-compose.sh --preflight-only >/dev/null 2>&1; then
+            echo 'Runtime compose accepted a mutable image reference' >&2
+            exit 1
+          fi

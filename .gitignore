@@ -15,3 +15,4 @@ apps/client/.cache/
 apps/client/.swc/
 apps/client/dist/
 apps/api/openapi/openapi.generated.json
+/backups/

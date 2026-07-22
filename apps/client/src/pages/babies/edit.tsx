@@ -3,6 +3,7 @@ import { useDidShow } from '@tarojs/taro'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { BabyForm } from '../../features/babies/BabyForm'
+import { useBabyFormGuard } from '../../features/babies/use-baby-form-guard'
 import { deleteBaby, getBaby, updateBaby } from '../../features/babies/api'
 import {
   loadBabies,
@@ -28,9 +29,11 @@ export default function EditBabyPage() {
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
   const [avatar, setAvatar] = useState<MediaDraft>()
+  const [dirty, setDirty] = useState(false)
   const uploadController = useRef<AbortController>()
   const requestRevision = useRef(0)
   const mounted = useRef(true)
+  const releaseUnsavedGuard = useBabyFormGuard(dirty)
 
   useEffect(() => () => {
     mounted.current = false
@@ -41,10 +44,12 @@ export default function EditBabyPage() {
   const clearSensitiveBaby = useCallback(() => {
     requestRevision.current += 1
     uploadController.current?.abort()
+    void releaseUnsavedGuard()
+    setDirty(false)
     setBaby(undefined)
     setBabyAccessVerified(false)
     setAvatar(undefined)
-  }, [])
+  }, [releaseUnsavedGuard])
 
   const refreshBaby = useCallback(async () => {
     if (!ready || !id) return
@@ -90,6 +95,8 @@ export default function EditBabyPage() {
         ...(avatarMediaId ? { avatarMediaId } : {}),
       })
       await loadBabies()
+      await releaseUnsavedGuard()
+      setDirty(false)
       await platform.showToast('宝宝档案已更新', 'success')
       await platform.navigateBack()
     } catch (reason) {
@@ -114,6 +121,8 @@ export default function EditBabyPage() {
       await deleteBaby(baby.id)
       await removeBabyFromState(baby.id)
       await loadBabies().catch(() => undefined)
+      await releaseUnsavedGuard()
+      setDirty(false)
       await platform.showToast('宝宝档案已删除', 'success')
       await platform.switchTab('/pages/home/index')
     } catch (reason) {
@@ -132,6 +141,7 @@ export default function EditBabyPage() {
   return <View className="page-shell"><View className="page-heading"><Text className="page-title">编辑宝宝档案</Text></View>
     <BabyForm key={baby.version} submitLabel="保存修改" loading={loading || deleting} error={error}
       avatar={avatar} avatarUrl={baby.avatarUrl} onAvatarChange={setAvatar}
+      onDirtyChange={setDirty}
       initialValues={{ name: baby.name, gender: baby.gender, birthDate: baby.birthDate,
         birthTime: baby.birthTime ?? '', birthHeightCm: baby.birthHeightCm?.toString() ?? '',
         birthWeightKg: baby.birthWeightKg?.toString() ?? '' }} onSubmit={submit} />

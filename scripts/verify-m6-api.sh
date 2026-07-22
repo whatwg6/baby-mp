@@ -392,6 +392,20 @@ unsafe_audit_count="$(
 )"
 [[ "$unsafe_audit_count" == 0 ]]
 
+# Exercise cleanup of a worker-crash placeholder against the real PostgreSQL
+# CHECK constraint. The row is intentionally unlinked and has no S3 object;
+# DeleteObject remains idempotent and cleanup must tombstone and purge it.
+orphan_media_id="$(uuid)"
+orphan_object_key="exports/$orphan_media_id.zip"
+admin_user_id="$(
+  db_query --tuples-only --no-align --quiet \
+    --command="select created_by from babies where id = '$baby_id';" \
+    | tr -d '[:space:]'
+)"
+db_query --quiet \
+    --command="insert into media (id, owner_user_id, baby_id, bucket, object_key, mime_type, size_bytes, status, purpose, created_at) values ('$orphan_media_id', '$admin_user_id', '$baby_id', '$STORAGE_BUCKET', '$orphan_object_key', 'application/zip', 0, 'pending', 'export_archive', now() - interval '40 minutes');" \
+  >/dev/null
+
 db_query --quiet \
   --command="update export_jobs set expires_at = now() - interval '1 minute' where id = '$export_id';" \
   >/dev/null
@@ -400,16 +414,22 @@ db_query --quiet \
   pnpm --filter @baby-mp/api exec tsx src/exports/run-export-worker.ts --cleanup \
     >"$work_dir/cleanup.json"
 )
-tail -n 1 "$work_dir/cleanup.json" | jq --exit-status '.cleaned == 1' >/dev/null
+tail -n 1 "$work_dir/cleanup.json" | jq --exit-status '.cleaned == 2' >/dev/null
 purged="$(
   db_query --tuples-only --no-align --quiet \
     --command="select (export_jobs.status = 'expired')::int || ':' || (media.purged_at is not null)::int from export_jobs join media on media.id = result_media_id where export_jobs.id = '$export_id';" \
     | tr -d '[:space:]'
 )"
 [[ "$purged" == '1:1' ]]
+orphan_purged="$(
+  db_query --tuples-only --no-align --quiet \
+    --command="select (status = 'deleted')::int || ':' || (deleted_at is not null)::int || ':' || (purged_at is not null)::int from media where id = '$orphan_media_id';" \
+    | tr -d '[:space:]'
+)"
+[[ "$orphan_purged" == '1:1:1' ]]
 object_status="$(curl --silent --show-error \
   --output "$work_dir/purged-object.txt" --write-out '%{http_code}' \
   "$STORAGE_BASE_URL/$STORAGE_BUCKET/$object_key")"
 assert_status "$object_status" 403 'Purged private object remains inaccessible'
 
-echo "M6 real API verification passed: media-export=$export_id no-media-export=$no_media_export_id records=2 media-manifest=1"
+echo "M6 real API verification passed: media-export=$export_id no-media-export=$no_media_export_id records=2 media-manifest=1 orphan-cleanup=1"

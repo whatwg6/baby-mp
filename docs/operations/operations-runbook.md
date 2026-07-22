@@ -16,6 +16,10 @@
 
 脚本只从环境或凭据提供器读取密码，不接受密码参数，也不会输出连接串。示例中的值均为占位符：
 
+使用 `PGPASSFILE` 代替 `PGPASSWORD` 时，文件必须是非符号链接的普通文件，且 Unix 权限不得宽于
+`0600`（推荐 `chmod 600 "$PGPASSFILE"`）。脚本会同时兼容 GNU/BSD `stat`；若运行平台无法可靠读取权限，
+会 fail closed，拒绝备份或恢复。
+
 ```bash
 export APP_ENV=staging
 export PGHOST='<staging-db-host>'
@@ -36,6 +40,8 @@ scripts/postgres-backup.sh
 
 1. 创建与源 PostgreSQL 主版本一致的空目标数据库。
 2. 取回备份和 checksum；从密钥管理服务临时挂载 age identity 文件。
+   `AGE_IDENTITY_FILE` 同样必须是非符号链接的普通文件且权限不得宽于 `0600`，挂载后先执行
+   `chmod 600 "$AGE_IDENTITY_FILE"`。不得把 identity 复制到备份目录。
 3. 将 `PG*` 指向空目标，人工核对主机、端口和库名。
 4. 执行恢复：
 
@@ -62,6 +68,11 @@ export REHEARSAL_CONFIRM=CREATE_AND_DROP_DISPOSABLE_DATABASE
 export REHEARSAL_SOURCE_QUIESCED=YES
 scripts/verify-postgres-backup-restore.sh
 ```
+
+在 production-only API 镜像内执行同一演练时，额外设置
+`RESTORE_RUNTIME_LAYOUT=runtime`；脚本会使用镜像内的 `prisma:deploy` 与
+`dist/main.js`，而不是 workspace 命令和路径。两种布局执行相同的 checksum、
+空目标、逐表行数、前进迁移和 readiness 校验。
 
 ### 迁移失败恢复
 

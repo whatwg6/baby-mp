@@ -1,4 +1,4 @@
-import type { ExecutionContext } from '@nestjs/common'
+import { type ExecutionContext, HttpException } from '@nestjs/common'
 import type { ConfigService } from '@nestjs/config'
 import { Reflector } from '@nestjs/core'
 import { describe, expect, it, vi } from 'vitest'
@@ -11,8 +11,10 @@ import { FamiliesController } from '../src/families/families.controller'
 import { MediaController } from '../src/media/media.controller'
 import type { Environment } from '../src/config/environment'
 
-function executionContext(headers: Record<string, string> = {}): ExecutionContext {
-  const response = { setHeader: vi.fn() }
+function executionContext(
+  headers: Record<string, string> = {},
+  response: { setHeader: ReturnType<typeof vi.fn> } = { setHeader: vi.fn() },
+): ExecutionContext {
   const request = {
     ip: '192.0.2.4',
     socket: {},
@@ -62,16 +64,25 @@ describe('RateLimitGuard', () => {
     expect(policy(MediaController.prototype.complete as never)).toBe('upload')
   })
 
-  it('rejects an IP after the configured endpoint limit', () => {
+  it('returns 429, RATE_LIMITED, and Retry-After after the configured endpoint limit', () => {
     const limiter = guard()
     expect(limiter.canActivate(executionContext())).toBe(true)
     expect(limiter.canActivate(executionContext())).toBe(true)
+    const response = { setHeader: vi.fn() }
     try {
-      limiter.canActivate(executionContext())
+      limiter.canActivate(executionContext({}, response))
       throw new Error('Expected rate limit rejection')
     } catch (error) {
-      expect((error as { getStatus(): number }).getStatus()).toBe(429)
+      expect(error).toBeInstanceOf(HttpException)
+      expect((error as HttpException).getStatus()).toBe(429)
+      expect((error as HttpException).getResponse()).toMatchObject({
+        code: 'RATE_LIMITED',
+      })
     }
+    expect(response.setHeader).toHaveBeenCalledWith(
+      'Retry-After',
+      expect.any(Number),
+    )
   })
 
   it('does not let unverified bearer credentials bypass the source limit', () => {

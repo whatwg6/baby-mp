@@ -1,4 +1,4 @@
-import { Button, Text, View } from '@tarojs/components'
+import { Button, Image, Text, View } from '@tarojs/components'
 import { useEffect, useState } from 'react'
 
 import { PageState } from '../../components'
@@ -79,7 +79,12 @@ export default function InvitePage() {
     {status === 'loading' ? <PageState kind="loading" title="正在检查邀请" /> : null}
     {status === 'error' ? <PageState kind="error" title="无法加入家庭" description={error} actionLabel={terminalError ? '返回' : '重新检查'} onAction={() => void (terminalError ? leave() : load())} /> : null}
     {status === 'ready' && preview ? <View>
-      <View className="page-heading"><Text className="page-title">加入 {preview.baby.name} 的家庭</Text><Text className="page-description">来自 {preview.inviter.displayName} 的邀请</Text></View>
+      <View className="page-heading family-invite-heading">
+        {preview.baby.avatarUrl
+          ? <Image className="family-invite-heading__avatar" src={preview.baby.avatarUrl} mode="aspectFill" />
+          : <View className="family-invite-heading__avatar family-avatar--fallback">宝</View>}
+        <Text className="page-title">加入 {preview.baby.name} 的家庭</Text><Text className="page-description">来自 {preview.inviter.displayName} 的邀请</Text>
+      </View>
       <View className="surface-card family-invite-preview"><Text className="family-label">加入后的权限</Text><Text>{roleText[preview.role]}</Text><Text className="list-card__meta">邀请有效至 {new Date(preview.expiresAt).toLocaleString()}</Text></View>
       {preview.status === 'pending'
         ? <><Button className="primary-button" loading={joining} disabled={joining} onClick={() => void join()}>加入家庭</Button><Button className="secondary-button" onClick={() => void leave()}>暂不加入</Button></>

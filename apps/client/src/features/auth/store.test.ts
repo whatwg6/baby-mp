@@ -10,6 +10,7 @@ const platformMock = vi.hoisted(() => ({
 const clearBabiesMock = vi.hoisted(() => vi.fn())
 const refreshSessionMock = vi.hoisted(() => vi.fn())
 const revokeSessionMock = vi.hoisted(() => vi.fn())
+const updateCurrentUserMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@tarojs/taro', () => ({ default: { request: vi.fn() } }))
 vi.mock('../../platform', () => ({ platform: platformMock }))
@@ -20,6 +21,7 @@ vi.mock('../babies/store', () => ({
 vi.mock('./api', () => ({
   refreshSession: refreshSessionMock,
   revokeSession: revokeSessionMock,
+  updateCurrentUser: updateCurrentUserMock,
 }))
 
 const OLD_USER_ID = '11111111-1111-4111-8111-111111111111'
@@ -145,6 +147,141 @@ describe('auth session store', () => {
     await restore
 
     expect(getAuthState()).toEqual({ status: 'authenticated', session: newSession })
+  })
+
+  it('updates the current display name while preserving the latest tokens', async () => {
+    const original = session()
+    const updatedUser = { ...original.user, displayName: '小雨妈妈' }
+    updateCurrentUserMock.mockResolvedValue(updatedUser)
+    const { getAuthState, saveSession, updateDisplayName } = await import('./store')
+    await saveSession(original)
+
+    await updateDisplayName('小雨妈妈')
+
+    const expected = { ...original, user: updatedUser }
+    expect(updateCurrentUserMock).toHaveBeenCalledWith('小雨妈妈')
+    expect(getAuthState()).toEqual({ status: 'authenticated', session: expected })
+    expect(platformMock.setStorage).toHaveBeenLastCalledWith('baby-mp.session.v1', expected)
+  })
+
+  it('rejects a profile response for another user without replacing the session', async () => {
+    const original = session()
+    updateCurrentUserMock.mockResolvedValue({
+      id: NEW_USER_ID, displayName: 'Wrong user', avatarUrl: null,
+    })
+    const { getAuthState, saveSession, updateDisplayName } = await import('./store')
+    await saveSession(original)
+    platformMock.setStorage.mockClear()
+
+    await expect(updateDisplayName('Wrong user')).rejects.toThrow('登录状态已变化')
+
+    expect(getAuthState()).toEqual({ status: 'authenticated', session: original })
+    expect(platformMock.setStorage).not.toHaveBeenCalled()
+  })
+
+  it('does not let an in-flight profile update overwrite a newer login', async () => {
+    const update = deferred<{ id: string, displayName: string, avatarUrl: null }>()
+    updateCurrentUserMock.mockReturnValue(update.promise)
+    const { getAuthState, saveSession, updateDisplayName } = await import('./store')
+    await saveSession(session())
+    const pending = updateDisplayName('Old account name')
+    await vi.waitFor(() => expect(updateCurrentUserMock).toHaveBeenCalledOnce())
+    const newer = session({
+      accessToken: 'new-access', refreshToken: 'new-refresh',
+      user: { id: NEW_USER_ID, displayName: 'New user', avatarUrl: null },
+    })
+    await saveSession(newer)
+    update.resolve({ id: OLD_USER_ID, displayName: 'Old account name', avatarUrl: null })
+
+    await expect(pending).rejects.toThrow('登录状态已变化')
+    expect(getAuthState()).toEqual({ status: 'authenticated', session: newer })
+  })
+
+  it('does not let an in-flight profile update restore a logged-out session', async () => {
+    const update = deferred<{ id: string, displayName: string, avatarUrl: null }>()
+    updateCurrentUserMock.mockReturnValue(update.promise)
+    const { clearSession, getAuthState, saveSession, updateDisplayName } = await import('./store')
+    await saveSession(session())
+    const pending = updateDisplayName('Old account name')
+    await vi.waitFor(() => expect(updateCurrentUserMock).toHaveBeenCalledOnce())
+    await clearSession()
+    update.resolve({ id: OLD_USER_ID, displayName: 'Old account name', avatarUrl: null })
+
+    await expect(pending).rejects.toThrow('登录状态已变化')
+    expect(getAuthState()).toEqual({ status: 'anonymous' })
+  })
+
+  it('keeps an updated display name when an older token refresh finishes later', async () => {
+    const refresh = deferred<ReturnType<typeof session>>()
+    refreshSessionMock.mockReturnValue(refresh.promise)
+    updateCurrentUserMock.mockResolvedValue({
+      id: OLD_USER_ID, displayName: '小雨妈妈', avatarUrl: null,
+    })
+    const transport = vi.fn()
+      .mockResolvedValueOnce({ statusCode: 401, data: { error: { code: 'AUTH_REQUIRED', message: 'expired' } } })
+      .mockResolvedValueOnce({ statusCode: 200, data: { data: { status: 'ok', version: '0.1.0' } } })
+    const { getAuthState, saveSession, updateDisplayName } = await import('./store')
+    const { createApiClient } = await import('../../services/api-client')
+    const original = session()
+    await saveSession(original)
+    const request = createApiClient('http://localhost:3000', transport).request({
+      path: '/api/v1/health', schema: healthResponseSchema,
+    })
+    await vi.waitFor(() => expect(refreshSessionMock).toHaveBeenCalledOnce())
+
+    const profileRequest = updateDisplayName('小雨妈妈')
+    await vi.waitFor(() => expect(updateCurrentUserMock).toHaveBeenCalledOnce())
+    const rotated = session({
+      accessToken: 'rotated-access', refreshToken: 'rotated-refresh',
+      user: { ...original.user, displayName: 'Test user' },
+    })
+    refresh.resolve(rotated)
+
+    await expect(Promise.all([profileRequest, request])).resolves.toEqual([
+      undefined,
+      { data: { status: 'ok', version: '0.1.0' } },
+    ])
+    expect(getAuthState()).toEqual({
+      status: 'authenticated',
+      session: { ...rotated, user: { ...original.user, displayName: '小雨妈妈' } },
+    })
+  })
+
+  it('keeps a profile update when refresh starts after the profile request', async () => {
+    const update = deferred<{ id: string, displayName: string, avatarUrl: null }>()
+    const refresh = deferred<ReturnType<typeof session>>()
+    updateCurrentUserMock.mockReturnValue(update.promise)
+    refreshSessionMock.mockReturnValue(refresh.promise)
+    const transport = vi.fn()
+      .mockResolvedValueOnce({ statusCode: 401, data: { error: { code: 'AUTH_REQUIRED', message: 'expired' } } })
+      .mockResolvedValueOnce({ statusCode: 200, data: { data: { status: 'ok', version: '0.1.0' } } })
+    const { getAuthState, saveSession, updateDisplayName } = await import('./store')
+    const { createApiClient } = await import('../../services/api-client')
+    const original = session()
+    await saveSession(original)
+
+    const profileRequest = updateDisplayName('小雨妈妈')
+    await vi.waitFor(() => expect(updateCurrentUserMock).toHaveBeenCalledOnce())
+    const apiRequest = createApiClient('http://localhost:3000', transport).request({
+      path: '/api/v1/health', schema: healthResponseSchema,
+    })
+    await vi.waitFor(() => expect(refreshSessionMock).toHaveBeenCalledOnce())
+
+    update.resolve({ id: OLD_USER_ID, displayName: '小雨妈妈', avatarUrl: null })
+    refresh.resolve(session({
+      accessToken: 'rotated-access', refreshToken: 'rotated-refresh',
+      user: { ...original.user, displayName: 'Test user' },
+    }))
+
+    await expect(Promise.all([profileRequest, apiRequest])).resolves.toBeDefined()
+    expect(getAuthState()).toEqual({
+      status: 'authenticated',
+      session: expect.objectContaining({
+        accessToken: 'rotated-access',
+        refreshToken: 'rotated-refresh',
+        user: { ...original.user, displayName: '小雨妈妈' },
+      }),
+    })
   })
 
   it('does not clear a newer login when an older in-flight refresh fails', async () => {

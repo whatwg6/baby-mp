@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react'
 import { platform } from '../../platform'
 import { configureApiAuth } from '../../services/api-client'
 import { clearBabies } from '../babies/store'
-import { refreshSession, revokeSession } from './api'
+import { refreshSession, revokeSession, updateCurrentUser } from './api'
 import type { Session } from './types'
 
 const SESSION_STORAGE_KEY = 'baby-mp.session.v1'
@@ -19,6 +19,8 @@ let restorePromise: Promise<AuthState> | undefined
 let refreshPromise: Promise<string | undefined> | undefined
 let authFailurePromise: Promise<void> | undefined
 let authRevision = 0
+let profileUpdateRevision = 0
+let pendingProfileUser: Session['user'] | undefined
 let storageMutation = Promise.resolve()
 const pendingAuthFailureRevisions: number[] = []
 const listeners = new Set<() => void>()
@@ -67,7 +69,10 @@ export async function restoreAuth(): Promise<AuthState> {
 
 export async function saveSession(session: Session) {
   const revision = ++authRevision
-  if (state.session?.user.id && state.session.user.id !== session.user.id) clearBabies()
+  if (state.session?.user.id && state.session.user.id !== session.user.id) {
+    pendingProfileUser = undefined
+    clearBabies()
+  }
   await mutateSessionStorage(() => platform.setStorage(SESSION_STORAGE_KEY, session))
   if (authRevision !== revision) return
   publish({ status: 'authenticated', session })
@@ -75,6 +80,7 @@ export async function saveSession(session: Session) {
 
 export async function clearSession() {
   const revision = ++authRevision
+  pendingProfileUser = undefined
   clearBabies()
   await mutateSessionStorage(() => platform.removeStorage(SESSION_STORAGE_KEY).catch(() => undefined))
   if (authRevision !== revision) return
@@ -90,6 +96,50 @@ export async function logout() {
   }
 }
 
+export async function updateDisplayName(displayName: string): Promise<void> {
+  const sessionAtStart = state.session
+  if (state.status !== 'authenticated' || !sessionAtStart) {
+    throw new Error('登录状态已变化，请重新登录')
+  }
+  const updateRevision = ++profileUpdateRevision
+  const user = await updateCurrentUser(displayName)
+  if (updateRevision !== profileUpdateRevision) {
+    throw new Error('已有更新的显示名，请重试')
+  }
+  const current = state.session
+  if (
+    state.status !== 'authenticated' ||
+    !current ||
+    current.user.id !== sessionAtStart.user.id ||
+    user.id !== sessionAtStart.user.id
+  ) {
+    throw new Error('登录状态已变化，请重新登录')
+  }
+  pendingProfileUser = user
+  await saveSession({ ...current, user })
+  // A token refresh may have started after this profile request and won the
+  // first storage race with a stale user summary. Re-apply the confirmed
+  // server result on top of the latest tokens without reviving another user
+  // or a logged-out session.
+  const pendingRefresh = refreshPromise
+  if (pendingRefresh) await pendingRefresh
+  const latest = state.session
+  if (
+    updateRevision === profileUpdateRevision &&
+    state.status === 'authenticated' &&
+    latest?.user.id === user.id &&
+    (
+      latest.user.displayName !== user.displayName ||
+      latest.user.avatarUrl !== user.avatarUrl
+    )
+  ) {
+    await saveSession({ ...latest, user })
+  }
+  if (updateRevision === profileUpdateRevision && pendingProfileUser === user) {
+    pendingProfileUser = undefined
+  }
+}
+
 async function refreshAccessToken(): Promise<string | undefined> {
   const revisionAtStart = authRevision
   if (!state.session?.refreshToken) {
@@ -98,12 +148,27 @@ async function refreshAccessToken(): Promise<string | undefined> {
   }
   refreshPromise ??= (async () => {
     const sessionAtStart = state.session
+    const userAtStart = sessionAtStart!.user
+    const profileRevisionAtStart = profileUpdateRevision
     try {
       const next = await refreshSession(sessionAtStart!.refreshToken)
       if (state.session?.refreshToken !== sessionAtStart!.refreshToken) {
         return undefined
       }
-      await saveSession(next)
+      const current = state.session
+      const confirmedProfile = pendingProfileUser?.id === next.user.id
+        ? pendingProfileUser
+        : undefined
+      const sessionToSave = confirmedProfile
+        ? { ...next, user: confirmedProfile }
+        : current?.user.id === next.user.id &&
+        (
+          profileUpdateRevision !== profileRevisionAtStart ||
+          current.user !== userAtStart
+        )
+        ? { ...next, user: current.user }
+        : next
+      await saveSession(sessionToSave)
       return next.accessToken
     } catch {
       return undefined

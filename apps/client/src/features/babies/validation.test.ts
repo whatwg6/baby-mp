@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatBabyAge, validateBabyForm, type BabyFormValues } from './validation'
+import { firstBabyFormErrorField, formatBabyAge, validateBabyForm, type BabyFormValues } from './validation'
 
 const valid: BabyFormValues = {
   name: ' 小满 ', gender: 'unspecified', birthDate: '2025-12-01', birthTime: '08:30',
@@ -13,9 +13,11 @@ describe('baby form validation', () => {
   })
 
   it('rejects empty names, future dates and out-of-range measurements', () => {
-    expect(validateBabyForm({ ...valid, name: ' ', birthDate: '2026-07-18', birthHeightCm: '19.9', birthWeightKg: '300.001' }, '2026-07-17')).toMatchObject({
+    const errors = validateBabyForm({ ...valid, name: ' ', birthDate: '2026-07-18', birthHeightCm: '19.9', birthWeightKg: '300.001' }, '2026-07-17')
+    expect(errors).toMatchObject({
       name: expect.any(String), birthDate: expect.any(String), birthHeightCm: expect.any(String), birthWeightKg: expect.any(String),
     })
+    expect(firstBabyFormErrorField(errors)).toBe('name')
   })
 
   it('formats month age and year-month age without rounding up early', () => {

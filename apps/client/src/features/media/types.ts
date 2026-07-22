@@ -5,6 +5,7 @@ export type { Media as MediaResource } from '@baby-mp/contracts'
 export interface MediaDraft {
   localId: string
   localPath?: string
+  webFile?: Blob
   fileName: string
   mimeType: string
   sizeBytes: number

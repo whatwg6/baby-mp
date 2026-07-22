@@ -134,6 +134,16 @@ const taroTransport: RequestTransport = async (options) => {
   try {
     const response = await task
     return { statusCode: response.statusCode, data: response.data }
+  } catch (error) {
+    // Taro H5 implements request timeouts by aborting its internal XHR. Keep
+    // that distinct from an explicit caller AbortSignal so a silent server is
+    // reported as a network failure instead of a user cancellation.
+    if (!signal?.aborted && error instanceof Error && error.name === 'AbortError') {
+      const timeoutError = new Error('request timed out', { cause: error })
+      timeoutError.name = 'TimeoutError'
+      throw timeoutError
+    }
+    throw error
   } finally {
     signal?.removeEventListener('abort', abort)
   }

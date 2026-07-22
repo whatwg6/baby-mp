@@ -143,6 +143,11 @@ assert_status "$status" 200 'weight query after delete'
 assert_json "$temporary_directory/weights-deleted.json" \
   "(.data.points | length) == 2 and (.data.points | map(.recordId) | index(\"${dual_two_id}\")) == null" \
   'weight synchronization after delete'
+status="$(request GET "/babies/${baby_id}/records?type=measurement&limit=20" '{}' "$admin_access" '' "$temporary_directory/timeline-deleted.json")"
+assert_status "$status" 200 'timeline after measurement deletion'
+assert_json "$temporary_directory/timeline-deleted.json" \
+  "(.data | map(.id) | index(\"${dual_two_id}\")) == null and (.data | map(.id) | index(\"${dual_one_id}\")) != null" \
+  'measurement removed from timeline and growth'
 
 status="$(request GET "/babies/${baby_id}/growth/measurements?metric=height" '{}' "$outsider_access" '' "$temporary_directory/outsider.json")"
 assert_status "$status" 404 'outsider growth query'

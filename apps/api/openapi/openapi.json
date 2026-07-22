@@ -2616,6 +2616,62 @@
           "system"
         ]
       }
+    },
+    "/api/v1/users/me": {
+      "patch": {
+        "operationId": "UsersController_updateMe",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCurrentUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated current user summary.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSummaryResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid display name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Access token is missing or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "users"
+        ]
+      }
     }
   },
   "info": {
@@ -2754,6 +2810,18 @@
               "VERSION_CONFLICT",
               "IDEMPOTENCY_CONFLICT",
               "CONFLICT",
+              "LAST_ADMIN_REQUIRED",
+              "INVITE_INVALID",
+              "INVITE_EXPIRED",
+              "INVITE_REVOKED",
+              "INVITE_ALREADY_USED",
+              "ALREADY_A_MEMBER",
+              "EXPORT_NOT_READY",
+              "EXPORT_EXPIRED",
+              "RATE_LIMITED",
+              "UPLOAD_INCOMPLETE",
+              "UPLOAD_TOO_LARGE",
+              "UNSUPPORTED_MEDIA_TYPE",
               "INTERNAL_ERROR"
             ],
             "example": "VALIDATION_FAILED"
@@ -4143,6 +4211,30 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/GrowthSeriesDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdateCurrentUserDto": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        },
+        "required": [
+          "displayName"
+        ]
+      },
+      "UserSummaryResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/UserSummaryDto"
           }
         },
         "required": [

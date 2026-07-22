@@ -371,7 +371,53 @@ active_export_id="$(jq --exit-status --raw-output \
   '.data.id' "$work_dir/active-delete-export.json")"
 jq --exit-status '.data.status == "pending" and .data.downloadUrl == null' \
   "$work_dir/active-delete-export.json" >/dev/null
-assert_db_scalar '2|pending|pending' "
+
+# Materialize a real private archive first, then place the same task at the
+# processing/link boundary that can race with baby deletion. This gives the
+# deletion cleanup assertion a real object to remove instead of a database-only
+# placeholder.
+(
+  cd "$repo_root"
+  pnpm --silent --filter @baby-mp/api exec tsx src/exports/run-export-worker.ts --once \
+    >"$work_dir/active-delete-worker.json"
+)
+tail -n 1 "$work_dir/active-delete-worker.json" \
+  | jq --exit-status '.processed == true' >/dev/null
+status="$(request POST "/exports/$active_export_id/download-url" '{}' \
+  "$admin_token" '' "$work_dir/active-delete-download.json")"
+assert_status "$status" 200 'Deletion-scope export download URL'
+active_export_download_url="$(jq --exit-status --raw-output \
+  '.data.downloadUrl' "$work_dir/active-delete-download.json")"
+archive_status="$(curl --silent --show-error --output "$work_dir/active-delete.zip" \
+  --write-out '%{http_code}' "$active_export_download_url")"
+assert_status "$archive_status" 200 'Deletion-scope archive exists before deletion'
+read -r active_export_media_id active_export_object_key <<<"$(db_query -AtF ' ' -qc "
+  SELECT result_media_id, media.object_key
+  FROM export_jobs
+  JOIN media ON media.id = export_jobs.result_media_id
+  WHERE export_jobs.id = '$active_export_id';
+")"
+if [[ -z "$active_export_media_id" || -z "$active_export_object_key" ]]; then
+  echo 'Deletion-scope export artifact was not linked' >&2
+  exit 1
+fi
+active_export_lease_id="$(uuid)"
+db_query -v ON_ERROR_STOP=1 -qc "
+  UPDATE media
+  SET status = 'pending', size_bytes = 0, sha256 = NULL, ready_at = NULL,
+      created_at = now() - interval '40 minutes'
+  WHERE id = '$active_export_media_id'
+    AND object_key = '$active_export_object_key';
+
+  UPDATE export_jobs
+  SET status = 'processing', result_media_id = '$active_export_media_id',
+      worker_lease_id = '$active_export_lease_id',
+      lease_expires_at = now() + interval '5 minutes',
+      started_at = now(), completed_at = NULL, expires_at = NULL,
+      error_code = NULL, attempt_count = 1
+  WHERE id = '$active_export_id';
+" >/dev/null
+assert_db_scalar '2|pending|processing' "
   SELECT
     (SELECT count(*) FROM baby_members
       WHERE baby_id = '$baby_id' AND status = 'active')::text || '|' ||
@@ -398,6 +444,17 @@ assert_status "$status" 409 'Deleted-baby invitation rejection'
 jq --exit-status '.error.code == "INVITE_REVOKED"' \
   "$work_dir/revoked-invite-accept.json" >/dev/null
 
+(
+  cd "$repo_root"
+  pnpm --silent --filter @baby-mp/api exec tsx src/exports/run-export-worker.ts --cleanup \
+    >"$work_dir/active-delete-cleanup.json"
+)
+tail -n 1 "$work_dir/active-delete-cleanup.json" \
+  | jq --exit-status '.cleaned >= 1' >/dev/null
+archive_status="$(curl --silent --show-error --output "$work_dir/active-delete-purged.txt" \
+  --write-out '%{http_code}' "$active_export_download_url")"
+assert_status "$archive_status" 404 'Deletion-scope archive physical cleanup'
+
 database_evidence="$(db_query -Atqc "
   SELECT
     (SELECT count(*) FROM babies WHERE id = '$baby_id' AND deleted_at IS NOT NULL),
@@ -410,7 +467,14 @@ database_evidence="$(db_query -Atqc "
     (SELECT count(*) FROM export_jobs
       WHERE id = '$active_export_id' AND status = 'failed'
         AND error_code = 'BABY_DELETED'
+        AND result_media_id IS NULL
         AND worker_lease_id IS NULL AND lease_expires_at IS NULL),
+    (SELECT count(*) FROM media
+      WHERE id = '$active_export_media_id' AND status = 'deleted'
+        AND deleted_at IS NOT NULL AND purged_at IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM export_jobs WHERE result_media_id = media.id
+        )),
     (SELECT count(*) FROM baby_members
       WHERE baby_id = '$baby_id' AND status = 'removed'
         AND removed_at IS NOT NULL),
@@ -427,9 +491,9 @@ database_evidence="$(db_query -Atqc "
         AND request_id IS NOT NULL
         AND metadata = '{}'::jsonb);
 ")"
-if [[ "$database_evidence" != '1|0|1|1|1|3|1|1' ]]; then
+if [[ "$database_evidence" != '1|0|1|1|1|1|3|1|1' ]]; then
   echo "M7 database assertions failed: $database_evidence" >&2
   exit 1
 fi
 
-echo 'M7 real API verification passed: controlled privacy lifecycle, immediate revocation, and low-sensitivity audit evidence are complete.'
+echo 'M7 real API verification passed: controlled privacy lifecycle, immediate revocation, physical archive cleanup, and low-sensitivity audit evidence are complete.'

@@ -1,4 +1,4 @@
-import { Button, Text, View } from '@tarojs/components'
+import { Button, Image, Text, View } from '@tarojs/components'
 import { useDidShow } from '@tarojs/taro'
 import { useEffect, useMemo, useState } from 'react'
 
@@ -115,7 +115,10 @@ export default function FamilyMembersPage() {
     {status === 'loading' ? <PageState kind="loading" /> : null}
     {status === 'error' ? <PageState kind="error" description={error} actionLabel="重新加载" onAction={() => void load()} /> : null}
     {status === 'ready' ? members.map((member) => <View className="surface-card family-member" key={member.id}>
-      <View><Text className="list-card__title">{member.user.displayName}{member.isCurrentUser ? '（我）' : ''}</Text><Text className="list-card__meta">{roleLabel[member.role]} · 加入于 {member.joinedAt.slice(0, 10)}</Text></View>
+      {member.user.avatarUrl
+        ? <Image className="family-avatar" src={member.user.avatarUrl} mode="aspectFill" lazyLoad />
+        : <View className="family-avatar family-avatar--fallback">家</View>}
+      <View className="family-member__body"><Text className="list-card__title">{member.user.displayName}{member.isCurrentUser ? '（我）' : ''}</Text><Text className="list-card__meta">{roleLabel[member.role]} · 加入于 {member.joinedAt.slice(0, 10)}</Text></View>
       {isAdmin && !member.isCurrentUser ? <View className="family-actions">
         {(['admin', 'editor', 'viewer'] as FamilyRole[]).filter((role) => role !== member.role).map((role) => <Button key={role} size="mini" disabled={busyId === member.id || (member.role === 'admin' && adminCount === 1)} onClick={() => void changeRole(member, role)}>设为{roleLabel[role]}</Button>)}
         <Button size="mini" className="family-danger" disabled={busyId === member.id || (member.role === 'admin' && adminCount === 1)} onClick={() => setRemoving(member)}>移除</Button>

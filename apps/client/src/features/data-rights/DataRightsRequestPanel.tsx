@@ -10,7 +10,7 @@ import type {
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { PageState } from '../../components/PageState'
 import { platform } from '../../platform'
-import { useAuthState } from '../auth/store'
+import { restoreAuth, useAuthState } from '../auth/store'
 import {
   loadBabies,
   refreshBabiesAfterAccessError,
@@ -64,6 +64,12 @@ export function DataRightsRequestPanel() {
   const cancelLock = useRef(false)
   const babyRefreshRevision = useRef(0)
   const currentBaby = babyAccessVerified ? babyState.current : undefined
+
+  useEffect(() => {
+    // The legal document is intentionally public, so this panel must restore
+    // an existing session without using the redirecting protected-page hook.
+    if (auth.status === 'restoring') void restoreAuth()
+  }, [auth.status])
 
   const refreshBabyAccess = useCallback(async () => {
     if (auth.status !== 'authenticated') {

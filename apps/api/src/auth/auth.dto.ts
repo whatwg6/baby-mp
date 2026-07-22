@@ -1,7 +1,13 @@
-import { IsIn, IsOptional, IsString, Length, MaxLength, MinLength } from 'class-validator'
+import { Transform } from 'class-transformer'
+import { IsIn, IsOptional, IsString, Length, MaxLength, MinLength, ValidateBy } from 'class-validator'
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 
-import type { PlatformType } from '@baby-mp/contracts'
+import {
+  API_ERROR_CODES,
+  displayNameSchema,
+  type ApiErrorCode,
+  type PlatformType,
+} from '@baby-mp/contracts'
 
 export class ApiErrorDetailDto {
   @ApiPropertyOptional({ type: String, example: 'birthDate' })
@@ -14,20 +20,10 @@ export class ApiErrorDetailDto {
 export class ApiErrorDto {
   @ApiProperty({
     type: String,
-    enum: [
-      'AUTH_REQUIRED',
-      'REFRESH_TOKEN_INVALID',
-      'FORBIDDEN',
-      'RESOURCE_NOT_FOUND',
-      'VALIDATION_FAILED',
-      'VERSION_CONFLICT',
-      'IDEMPOTENCY_CONFLICT',
-      'CONFLICT',
-      'INTERNAL_ERROR',
-    ],
+    enum: API_ERROR_CODES,
     example: 'VALIDATION_FAILED',
   })
-  code!: string
+  code!: ApiErrorCode
 
   @ApiProperty({ type: String, example: '提交内容有误' })
   message!: string
@@ -107,8 +103,14 @@ export class MockLoginDto {
 
   @ApiPropertyOptional({ type: String, maxLength: 80 })
   @IsOptional()
-  @IsString()
-  @Length(1, 80)
+  @Transform(({ value }: { value: unknown }) => typeof value === 'string' ? value.trim() : value)
+  @ValidateBy({
+    name: 'isDisplayName',
+    validator: {
+      validate: (value: unknown) => displayNameSchema.safeParse(value).success,
+      defaultMessage: () => 'displayName must contain 1–80 Unicode characters',
+    },
+  })
   displayName?: string
 }
 

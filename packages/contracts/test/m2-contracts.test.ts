@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { authSessionSchema, babySchema } from '../src'
+import { authSessionSchema, babySchema, updateCurrentUserInputSchema } from '../src'
 
 describe('M2 contracts', () => {
   it('validates the auth and baby response shapes', () => {
@@ -15,5 +15,15 @@ describe('M2 contracts', () => {
       avatarUrl: null, role: 'admin', version: 1,
       createdAt: '2026-07-17T00:00:00.000Z', updatedAt: '2026-07-17T00:00:00.000Z',
     }).success).toBe(true)
+  })
+
+  it('trims a display name and enforces the shared 1–80 character contract', () => {
+    expect(updateCurrentUserInputSchema.parse({ displayName: '  小雨妈妈  ' }))
+      .toEqual({ displayName: '小雨妈妈' })
+    expect(updateCurrentUserInputSchema.safeParse({ displayName: '   ' }).success).toBe(false)
+    expect(updateCurrentUserInputSchema.safeParse({ displayName: '名'.repeat(81) }).success).toBe(false)
+    expect(updateCurrentUserInputSchema.safeParse({ displayName: '😀'.repeat(80) }).success).toBe(true)
+    expect(updateCurrentUserInputSchema.safeParse({ displayName: '妈妈', userId: crypto.randomUUID() }).success)
+      .toBe(false)
   })
 })

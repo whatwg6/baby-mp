@@ -3,10 +3,21 @@ import {
   Injectable,
   ServiceUnavailableException,
 } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 
 import { OperationalMetricsService } from '../common/observability/operational-metrics.service'
+import type { Environment } from '../config/environment'
 import { PrismaService } from '../database/prisma.service'
 import { S3StorageService } from '../media/s3-storage.service'
+
+interface WorkerHeartbeatMetrics {
+  activeInstances: number
+  unhealthyInstances: number
+  lastSuccessAt: string | null
+  lastSuccessAgeSeconds: number | null
+  lastFailureAt: string | null
+  lastFailureAgeSeconds: number | null
+}
 
 @Injectable()
 export class HealthService {
@@ -15,6 +26,8 @@ export class HealthService {
     @Inject(S3StorageService) private readonly storage: S3StorageService,
     @Inject(OperationalMetricsService)
     private readonly metrics: OperationalMetricsService,
+    @Inject(ConfigService)
+    private readonly config: ConfigService<Environment, true>,
   ) {}
 
   async readiness(): Promise<{ data: { status: 'ready' } }> {
@@ -40,9 +53,11 @@ export class HealthService {
         failed: number
         oldestPendingAgeSeconds: number | null
       }
+      exportWorker: WorkerHeartbeatMetrics
+      mediaCleanup: WorkerHeartbeatMetrics
     }
   }> {
-    const [counts, oldest] = await Promise.all([
+    const [counts, oldest, exportWorker, mediaCleanup] = await Promise.all([
       this.prisma.exportJob.groupBy({
         by: ['status'],
         where: { status: { in: ['pending', 'processing', 'failed'] } },
@@ -53,6 +68,11 @@ export class HealthService {
         orderBy: { createdAt: 'asc' },
         select: { createdAt: true },
       }),
+      this.workerHeartbeatMetrics('export-worker', 60),
+      this.workerHeartbeatMetrics(
+        'media-cleanup',
+        this.config.get('MEDIA_CLEANUP_INTERVAL_SECONDS', { infer: true }) + 300,
+      ),
     ])
     const count = (status: 'pending' | 'processing' | 'failed') =>
       counts.find((entry) => entry.status === status)?._count._all ?? 0
@@ -71,8 +91,49 @@ export class HealthService {
               )
             : null,
         },
+        exportWorker,
+        mediaCleanup,
       },
     }
+  }
+
+  private async workerHeartbeatMetrics(
+    workerName: string,
+    maximumSuccessAgeSeconds: number,
+  ): Promise<WorkerHeartbeatMetrics> {
+    const instances = await this.prisma.workerHeartbeat.findMany({
+      where: { workerName, stoppedAt: null },
+      select: {
+        lastSuccessAt: true,
+        lastFailureAt: true,
+      },
+    })
+    const latest = (values: Array<Date | null>): Date | null =>
+      values.reduce<Date | null>(
+        (current, value) => value && (!current || value > current) ? value : current,
+        null,
+      )
+    const lastSuccessAt = latest(instances.map((instance) => instance.lastSuccessAt))
+    const lastFailureAt = latest(instances.map((instance) => instance.lastFailureAt))
+    const unhealthyInstances = instances.filter((instance) => {
+      const successAge = this.ageSeconds(instance.lastSuccessAt)
+      return successAge === null || successAge > maximumSuccessAgeSeconds ||
+        Boolean(instance.lastFailureAt && (!instance.lastSuccessAt || instance.lastFailureAt > instance.lastSuccessAt))
+    }).length
+    return {
+      activeInstances: instances.length,
+      unhealthyInstances,
+      lastSuccessAt: lastSuccessAt?.toISOString() ?? null,
+      lastSuccessAgeSeconds: this.ageSeconds(lastSuccessAt),
+      lastFailureAt: lastFailureAt?.toISOString() ?? null,
+      lastFailureAgeSeconds: this.ageSeconds(lastFailureAt),
+    }
+  }
+
+  private ageSeconds(value: Date | null): number | null {
+    return value
+      ? Math.max(0, Math.floor((Date.now() - value.getTime()) / 1_000))
+      : null
   }
 
   private async withTimeout<T>(work: Promise<T>, timeoutMs: number): Promise<T> {

@@ -3,6 +3,7 @@ name: baby-mp-runtime
 x-runtime-environment: &runtime-environment
   APP_ENV: ${APP_ENV:?set APP_ENV to staging or production}
   APP_VERSION: ${APP_VERSION:?set immutable APP_VERSION}
+  BABY_MP_IMAGE_REF: ${BABY_MP_IMAGE:?set immutable image digest}
   API_HOST: 0.0.0.0
   API_PORT: 3000
   TRUST_PROXY: ${TRUST_PROXY:-false}
@@ -28,13 +29,15 @@ x-runtime-environment: &runtime-environment
   RATE_LIMIT_LOGIN_MAX: ${RATE_LIMIT_LOGIN_MAX:-10}
   RATE_LIMIT_INVITE_MAX: ${RATE_LIMIT_INVITE_MAX:-30}
   RATE_LIMIT_UPLOAD_MAX: ${RATE_LIMIT_UPLOAD_MAX:-60}
+  EXPORT_WORKER_MAX_ITERATION_SECONDS: ${EXPORT_WORKER_MAX_ITERATION_SECONDS:-7200}
+  MEDIA_CLEANUP_INTERVAL_SECONDS: ${MEDIA_CLEANUP_INTERVAL_SECONDS:-3600}
 
 services:
   migrate:
     image: ${BABY_MP_IMAGE:?set immutable image digest}
     restart: "no"
     environment: *runtime-environment
-    command: ["pnpm", "--filter", "@baby-mp/api", "prisma:deploy"]
+    command: ["pnpm", "run", "prisma:deploy"]
     profiles: ["migration"]
 
   api:
@@ -68,5 +71,40 @@ services:
     tmpfs:
       - /tmp:size=64m,mode=1777
     environment: *runtime-environment
-    command: ["node", "apps/api/dist/exports/run-export-worker.js"]
+    command: ["pnpm", "run", "exports:worker"]
     stop_grace_period: 45s
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "const h=JSON.parse(require('fs').readFileSync('/tmp/export-worker-health.json','utf8'));const s=Date.parse(h.lastSuccessAt);const f=h.lastFailureAt?Date.parse(h.lastFailureAt):0;if(!Number.isFinite(s)||Date.now()-s>60000||f>s)process.exit(1)"
+        ]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+
+  media-cleanup:
+    image: ${BABY_MP_IMAGE:?set immutable image digest}
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    environment: *runtime-environment
+    command: ["pnpm", "run", "media:cleanup:scheduler"]
+    stop_grace_period: 45s
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://api:3000/api/v1/health/metrics',{headers:{'x-internal-monitoring-token':process.env.INTERNAL_MONITORING_TOKEN}}).then(async r=>{if(!r.ok)process.exit(1);const m=(await r.json())?.data?.mediaCleanup;const max=Number(process.env.MEDIA_CLEANUP_INTERVAL_SECONDS||3600)+300;if(typeof m?.lastSuccessAgeSeconds!=='number'||m.lastSuccessAgeSeconds>max||(m.lastFailureAt&&(!m.lastSuccessAt||m.lastFailureAt>m.lastSuccessAt)))process.exit(1)}).catch(()=>process.exit(1))"
+        ]
+      interval: 60s
+      timeout: 3s
+      retries: 3
+      start_period: 30s

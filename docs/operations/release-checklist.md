@@ -7,7 +7,7 @@
 ## 候选版本
 
 - [ ] 范围仅含批准的 MVP；版本说明与 migration 列表完成
-- [ ] `TARO_APP_API_BASE_URL=https://<release-api-origin> pnpm verify`、OpenAPI 生成及里程碑 API 验证通过
+- [ ] `TARO_APP_API_BASE_URL=https://<release-api-origin> pnpm verify`、OpenAPI 生成及里程碑 API 验证通过；微信包体预算统一使用 `WEAPP_BUNDLE_BUDGET_BYTES`（旧 `WEAPP_ARTIFACT_BUDGET_BYTES` 仅兼容迁移，不得配置冲突值）
 - [ ] P0 全部通过，P1 核心用例通过率 100%，无未关闭 S0/S1
 - [ ] 所有宝宝域接口权限矩阵与多宝宝隔离通过
 - [ ] 弱网、超时、重复点击、上传中断、会话过期通过

@@ -115,6 +115,37 @@ export class ExportWorker {
     @Inject(S3StorageService) private readonly storage: S3StorageService,
   ) {}
 
+  async registerHeartbeat(instanceId: string, at = new Date()): Promise<void> {
+    await this.prisma.workerHeartbeat.create({
+      data: {
+        instanceId,
+        workerName: 'export-worker',
+        startedAt: at,
+      },
+    })
+  }
+
+  async recordHeartbeatSuccess(instanceId: string, at = new Date()): Promise<void> {
+    await this.prisma.workerHeartbeat.updateMany({
+      where: { instanceId, workerName: 'export-worker', stoppedAt: null },
+      data: { lastSuccessAt: at },
+    })
+  }
+
+  async recordHeartbeatFailure(instanceId: string, at = new Date()): Promise<void> {
+    await this.prisma.workerHeartbeat.updateMany({
+      where: { instanceId, workerName: 'export-worker', stoppedAt: null },
+      data: { lastFailureAt: at },
+    })
+  }
+
+  async stopHeartbeat(instanceId: string, at = new Date()): Promise<void> {
+    await this.prisma.workerHeartbeat.updateMany({
+      where: { instanceId, workerName: 'export-worker', stoppedAt: null },
+      data: { stoppedAt: at },
+    })
+  }
+
   async processOnce(now = new Date()): Promise<boolean> {
     await this.recoverExpiredLeases(now)
     const job = await this.claim(now)

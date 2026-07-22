@@ -5,11 +5,15 @@ import { createIdempotencyKey } from '../services/idempotency-key'
 export interface SelectedImage {
   path: string
   size: number
+  fileName: string
+  mimeType: 'image/jpeg' | 'image/png'
+  webFile?: Blob
 }
 
 export interface UploadFileInput {
   url: string
   path: string
+  body?: Blob
   headers: Record<string, string>
   onProgress?: (percentage: number) => void
   signal?: AbortSignal
@@ -18,6 +22,11 @@ export interface UploadFileInput {
 export interface DownloadExportInput {
   url: string
   fileName: string
+}
+
+export interface UnsavedNavigationGuard {
+  release: () => Promise<void>
+  dispose: () => void
 }
 
 export const MAX_BUFFERED_UPLOAD_BYTES = 20 * 1024 * 1024
@@ -34,12 +43,133 @@ function throwIfUploadAborted(signal?: AbortSignal) {
   if (signal?.aborted) throw uploadAbortError()
 }
 
+function imageMimeType(type: string | undefined, source: string, defaultToJpeg = false): SelectedImage['mimeType'] {
+  const normalized = type?.split(';')[0]?.trim().toLowerCase()
+  if (normalized === 'image/jpeg' || normalized === 'image/jpg') return 'image/jpeg'
+  if (normalized === 'image/png') return 'image/png'
+
+  const path = source.toLowerCase().split('?')[0] ?? source.toLowerCase()
+  if (path.endsWith('.jpg') || path.endsWith('.jpeg')) return 'image/jpeg'
+  if (path.endsWith('.png')) return 'image/png'
+  if (defaultToJpeg) return 'image/jpeg'
+  throw new Error('仅支持 JPG 或 PNG 图片')
+}
+
+function imageFileName(name: string | undefined, path: string, mimeType: SelectedImage['mimeType'], index: number) {
+  const pathSegment = path.split('/').pop()?.split('?')[0]
+  const candidate = name?.trim() || (pathSegment?.includes('.') ? pathSegment.trim() : '')
+  return candidate || `photo-${index + 1}.${mimeType === 'image/png' ? 'png' : 'jpg'}`
+}
+
 async function settleH5BeforeNavigation(): Promise<void> {
   if (Taro.getEnv() !== Taro.ENV_TYPE.WEB) return
   if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
   await new Promise<void>((resolve) => {
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()))
   })
+}
+
+function createUnsavedNavigationGuard(
+  message: string,
+  confirmLeave: () => Promise<boolean>,
+): UnsavedNavigationGuard {
+  if (Taro.getEnv() !== Taro.ENV_TYPE.WEB) {
+    Taro.enableAlertBeforeUnload({ message })
+    let active = true
+    const disable = () => {
+      if (!active) return
+      active = false
+      Taro.disableAlertBeforeUnload()
+    }
+    return { release: async () => disable(), dispose: disable }
+  }
+
+  const marker = `baby-mp-unsaved-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  let active = true
+  let armed = false
+  let confirmationPending = false
+  const beforeUnload = (event: BeforeUnloadEvent) => {
+    event.preventDefault()
+    event.returnValue = message
+  }
+  const arm = () => {
+    window.history.pushState({ ...window.history.state, [marker]: true }, '', window.location.href)
+    armed = true
+  }
+  const removeListeners = () => {
+    window.removeEventListener('beforeunload', beforeUnload)
+    window.removeEventListener('popstate', onPopState)
+  }
+  const onPopState = async () => {
+    if (!active) return
+    armed = false
+    // Restore the marker before opening an async modal so repeated browser
+    // back gestures cannot escape past the edit route while confirmation is
+    // still pending.
+    arm()
+    if (confirmationPending) return
+    confirmationPending = true
+    const confirmed = await confirmLeave().catch(() => false)
+    confirmationPending = false
+    if (!active) return
+    if (confirmed) {
+      active = false
+      removeListeners()
+      if (armed && window.history.state?.[marker]) {
+        await new Promise<void>((resolve) => {
+          let settled = false
+          const done = () => {
+            if (settled) return
+            settled = true
+            window.removeEventListener('popstate', done)
+            resolve()
+          }
+          window.addEventListener('popstate', done, { once: true })
+          window.history.back()
+          window.setTimeout(done, 250)
+        })
+        armed = false
+      }
+      await settleH5BeforeNavigation()
+      await Taro.navigateBack()
+    }
+  }
+
+  window.addEventListener('beforeunload', beforeUnload)
+  window.addEventListener('popstate', onPopState)
+  arm()
+
+  return {
+    release: async () => {
+      if (!active) return
+      active = false
+      removeListeners()
+      if (!armed || !window.history.state?.[marker]) return
+      await new Promise<void>((resolve) => {
+        let settled = false
+        const done = () => {
+          if (settled) return
+          settled = true
+          window.removeEventListener('popstate', done)
+          resolve()
+        }
+        window.addEventListener('popstate', done, { once: true })
+        window.history.back()
+        window.setTimeout(done, 250)
+      })
+      armed = false
+    },
+    dispose: () => {
+      if (!active) return
+      active = false
+      removeListeners()
+      if (armed && window.history.state?.[marker]) {
+        const nextState = { ...window.history.state }
+        delete nextState[marker]
+        window.history.replaceState(nextState, '', window.location.href)
+      }
+    },
+  }
 }
 
 function uploadBlobWithProgress(
@@ -76,35 +206,43 @@ export const platform = {
   login: () => Taro.login(),
   chooseImages: async (count = 9): Promise<SelectedImage[]> => {
     const result = await Taro.chooseImage({ count, sourceType: ['album', 'camera'] })
-    return result.tempFiles.map((file) => ({ path: file.path, size: file.size }))
+    const isWeb = Taro.getEnv() === Taro.ENV_TYPE.WEB
+    return result.tempFiles.map((file, index) => {
+      const webFile = file.originalFileObj
+      const mimeType = imageMimeType(webFile?.type || file.type, webFile?.name || file.path, !isWeb)
+      return {
+        path: file.path,
+        size: webFile?.size ?? file.size,
+        fileName: imageFileName(webFile?.name, file.path, mimeType, index),
+        mimeType,
+        ...(webFile ? { webFile } : {}),
+      }
+    })
   },
   compressImage: async (image: SelectedImage, quality = 82): Promise<SelectedImage> => {
+    // Taro H5 4.x does not implement compressImage. Keep the browser File so
+    // retries upload the exact selected bytes instead of fetching a missing
+    // tempFilePath (which can accidentally resolve to the SPA document).
+    if (Taro.getEnv() === Taro.ENV_TYPE.WEB) return image
+
     const result = await Taro.compressImage({ src: image.path, quality })
-    if (Taro.getEnv() === Taro.ENV_TYPE.WEB) {
-      try {
-        const response = await fetch(result.tempFilePath)
-        if (response.ok) {
-          const compressed = await response.blob()
-          if (compressed.size > 0) return { path: result.tempFilePath, size: compressed.size }
-        }
-      } catch {
-        // Taro H5 can return a temporary compression URL that is not readable
-        // by fetch. The original selected Blob remains private and usable.
-      }
-      return image
-    }
+    if (!result.tempFilePath) throw new Error('图片压缩结果不可用')
     const info = await Taro.getFileInfo({ filePath: result.tempFilePath })
     if (!('size' in info)) throw new Error('无法读取压缩图片大小')
-    return { path: result.tempFilePath, size: info.size }
+    return { ...image, path: result.tempFilePath, size: info.size, webFile: undefined }
   },
-  uploadFile: async ({ url, path, headers, onProgress, signal }: UploadFileInput): Promise<void> => {
+  uploadFile: async ({ url, path, body, headers, onProgress, signal }: UploadFileInput): Promise<void> => {
     throwIfUploadAborted(signal)
     if (Taro.getEnv() === Taro.ENV_TYPE.WEB) {
-      const localResponse = await fetch(path, { signal })
-      if (!localResponse.ok) throw new Error('无法读取待上传图片')
-      const body = await localResponse.blob()
-      if (body.size > MAX_BUFFERED_UPLOAD_BYTES) throw new Error('压缩后的图片不能超过 20MB')
-      await uploadBlobWithProgress(url, body, headers, onProgress, signal)
+      let uploadBody = body
+      if (!uploadBody) {
+        if (!path) throw new Error('本地图片已不可用，请重新选择')
+        const localResponse = await fetch(path, { signal })
+        if (!localResponse.ok) throw new Error('无法读取待上传图片')
+        uploadBody = await localResponse.blob()
+      }
+      if (uploadBody.size > MAX_BUFFERED_UPLOAD_BYTES) throw new Error('压缩后的图片不能超过 20MB')
+      await uploadBlobWithProgress(url, uploadBody, headers, onProgress, signal)
       return
     }
 
@@ -169,6 +307,8 @@ export const platform = {
     .then(({ width, height }) => ({ width, height })),
   previewImages: (urls: string[], current = urls[0]) => Taro.previewImage({ urls, current }),
   stopPullDownRefresh: () => Taro.stopPullDownRefresh(),
+  scrollToTop: () => Taro.pageScrollTo({ scrollTop: 0, duration: 0 }),
+  scrollToElement: (selector: string) => Taro.pageScrollTo({ selector, duration: 200 }),
   getStorage: <T>(key: string): Promise<T | undefined> =>
     Taro.getStorage<T>({ key })
       .then((result) => result.data)
@@ -213,6 +353,8 @@ export const platform = {
   },
   showModal: (title: string, content: string, confirmText = '确认', cancelText = '取消') =>
     Taro.showModal({ title, content, confirmText, cancelText }),
+  guardUnsavedChanges: (message: string, confirmLeave: () => Promise<boolean>) =>
+    createUnsavedNavigationGuard(message, confirmLeave),
   createIdempotencyKey,
   getRouteParams: () => Taro.getCurrentInstance().router?.params ?? {},
   getSystemInfo: () => Taro.getSystemInfo(),

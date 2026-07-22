@@ -195,12 +195,14 @@ describe('BabiesService consistency', () => {
       status: MediaStatus.ready,
     }
     const accessUrlFor = vi.fn(async () => 'https://media.example.test/signed-avatar')
+    const findMany = vi.fn(async () => [{
+      id: 'membership-1',
+      role: MemberRole.admin,
+      baby: { ...babyRecord(), avatarMediaId: '44444444-4444-4444-8444-444444444444', avatarMedia: avatar },
+    }])
     const prisma = {
       babyMember: {
-        findMany: vi.fn(async () => [{
-          role: MemberRole.admin,
-          baby: { ...babyRecord(), avatarMediaId: '44444444-4444-4444-8444-444444444444', avatarMedia: avatar },
-        }]),
+        findMany,
       },
     } as unknown as PrismaService
     const service = new BabiesService(
@@ -213,6 +215,9 @@ describe('BabiesService consistency', () => {
 
     expect(result[0]?.avatarUrl).toBe('https://media.example.test/signed-avatar')
     expect(accessUrlFor).toHaveBeenCalledWith(avatar)
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      orderBy: [{ joinedAt: 'desc' }, { id: 'desc' }],
+    }))
   })
 
   it('rejects an avatar that is not a ready image belonging to the target baby', async () => {
@@ -319,6 +324,7 @@ describe('BabiesService consistency', () => {
       },
       data: {
         status: ExportStatus.failed,
+        resultMediaId: null,
         errorCode: 'BABY_DELETED',
         workerLeaseId: null,
         leaseExpiresAt: null,

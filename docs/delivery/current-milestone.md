@@ -5,9 +5,9 @@
 | 项目 | 内容 |
 | --- | --- |
 | 当前里程碑 | M7：稳定性、安全与发布 |
-| 状态 | In Progress（仓库实现与本地验收完成，等待外部预发布/正式发布门槛） |
+| 状态 | In Progress（仓库代码收口；等待 Linux/CI 候选产物及外部预发布/正式发布门槛） |
 | 负责人模式 | Lead Agent 统一发布候选、迁移、验证证据与外部发布协调 |
-| 更新日期 | 2026-07-22 |
+| 更新日期 | 2026-07-23 |
 
 ## 1. 上一阶段结论
 
@@ -23,10 +23,12 @@ M6 已完成：
 
 ## 2. 当前阶段目标
 
-仓库内目标已经完成，当前剩余目标是把发布候选接入真实预发布环境并取得不可由仓库伪造的发布证据：
+仓库代码目标已经收口。当前先要由 Linux/CI 从同一 commit 重新生成并验证正式 H5/微信候选产物，
+随后把该候选接入真实预发布环境并取得不可由仓库伪造的发布证据：
 
 ```text
-锁定发布候选 commit
+锁定发布候选 commit 与 CI/Security 结果
+→ Linux 重新构建正式 H5/微信产物并执行语义门禁
 → 注入正式平台/云密钥
 → 建立 staging/production 隔离资源
 → 配置 HTTPS request/upload/download 域名
@@ -59,30 +61,30 @@ M6 已完成：
 - PostgreSQL 备份脚本生成 custom-format 备份与 SHA-256；恢复脚本执行 checksum、空目标、显式确认和生产二次保护。
 - 本地隔离备份恢复演练验证 schema、迁移表、逐表精确行数和 ready media 引用字段。
 - 本地 MinIO 验证 7 天 `exports/` 生命周期、禁用版本保留、私有桶以及匿名列举/读取拒绝。
-- 正式 H5/微信产物门禁检查包体、AppID、`urlCheck` 和 mock-login 字符串；E2E 失败附件不进入 Git 或 Docker build context。
+- 正式 H5/微信产物门禁检查包体、AppID、`urlCheck`、API origin 和 mock-login 字符串；
+  E2E 使用独立 `dist/h5-e2e`，不会覆盖 `dist/h5`，失败附件不进入 Git 或 Docker build context。
+- 导出 worker 使用实例专属活性文件、连续失败抑制和 2 小时默认迭代 watchdog；
+  多实例聚合指标不会由一个健康实例掩盖另一个失败实例。
 
 ## 4. 最新验证证据
 
-2026-07-22 实际执行：
+2026-07-23 对当前工作树实际执行：
 
-- `pnpm verify`（显式注入 CI 用 HTTPS API origin）：通过。
-  - contracts：9 项。
-  - client：67 项。
-  - API：161 项。
-  - 合计 237 项；lint、全部 typecheck、API build、production H5 和 production 微信构建通过。
-- 全新 PostgreSQL 数据库连续应用 M1–M7 共 7 条 migration：通过。
-- `scripts/verify-ci-integration.sh`：真实 PostgreSQL/MinIO M2–M7 全部通过；包含带/不带照片导出、数据权利 CLI 状态流转、删除宝宝联动撤销邀请/导出和立即失权。
-- Playwright：核心旅程 + 4 条韧性旅程，`5 passed (11.6s)`。
-- PostgreSQL 备份与隔离恢复：通过；逐表行数、迁移和媒体引用一致。
-- MinIO：7 天导出生命周期、未启用 versioning、匿名 list/read 403：通过。
-- `pnpm verify:artifacts` 与客户端发布产物检查：通过。
-  - H5 raw：8,292,410 / 10,485,760 bytes。
-  - H5 JS gzip：2,202,116 / 2,621,440 bytes。
-  - 最大 H5 chunk gzip：134,192 / 163,840 bytes。
-  - 微信包：631,930 / 2,097,152 bytes。
-- `pnpm --registry=https://registry.npmjs.org audit --prod --audit-level low`：通过；0 个已知漏洞。
-- `pnpm openapi:generate`：通过。
-- `docker build --tag baby-mp:pre-release .`：通过；构建上下文约 4.9 MiB。
+- `pnpm lint`、`pnpm typecheck`、API build：通过。
+- contracts：11 项；client：117 项；API：183 项；合计 **311 项全部通过**。
+- `pnpm verify:traceability`：94/94 个 P0/P1 用例 covered（P0=44、P1=50、gap=0）。
+- runtime preflight：安全 staging/production 配置通过，mock auth、示例密钥、本地端点和不安全生产配置均被拒绝。
+- Prisma schema validate：通过；当前 M1–M7 共 **9 条**只前进 migration。9 条 migration 此前已在全新 PostgreSQL 连续应用通过，本轮未改变迁移内容。
+- `pnpm openapi:generate`：无漂移；SHA-256 为
+  `3ff2a484fa8204ad60fda43bb33c85ec8305bc652ddebff1633d0ef51997f440`。
+- shell/Node 语法、`git diff --check`：通过。
+- 删除宝宝现在原子解除活动导出归档引用；M7 真实链路脚本会生成实际私有 ZIP，删除宝宝后执行清理并要求旧签名 URL 返回 404。
+- Playwright 的上一轮 Linux 证据为 9/9；本轮补强了多宝宝缓存隔离和真实归档/超时场景，调整后的 9 项仍需在 Linux/CI 重跑。
+- 当前本地包体预算仍通过（H5 raw 8,515,814；H5 JS gzip 2,265,940；最大 chunk 137,193；微信 631,930 bytes），
+  但 `dist/h5` 是旧 E2E 产物，正式语义门禁正确拒绝其 mock-login。当前 commit 的 production H5/微信产物必须由 Linux/CI 重新生成，旧镜像也不能作为候选证据。
+- 2026-07-22 的既有环境证据仍包括：9 条 migration、真实 PostgreSQL/MinIO M2–M7、
+  PostgreSQL 备份隔离恢复、MinIO 私有桶/生命周期以及生产依赖审计 0 个已知漏洞；
+  本轮新增脚本和 E2E 调整需要 CI 再执行，不能用旧输出冒充当前候选。
 
 ## 5. 验收清单
 
@@ -92,7 +94,7 @@ M6 已完成：
 - [x] 所有高风险资源访问保持服务端实时授权和低敏日志。
 - [x] 生产依赖无已知漏洞。
 - [x] 本地备份恢复、私有桶和生命周期基线可执行。
-- [x] H5/微信正式产物不包含 mock login，且包体在项目门限内。
+- [ ] 当前 commit 的 H5/微信正式产物由 Linux/CI 重新生成，且不包含 mock login、origin 匹配、包体在项目门限内。
 - [x] 用户协议、隐私政策、数据处理申请、退出家庭和删除宝宝路径可达。
 - [ ] staging/production 数据库、私有对象存储、区域、静态加密和 secret store 已创建并记录。
 - [ ] 正式 HTTPS request/upload/download 域名已配置并在微信后台生效。
@@ -117,6 +119,7 @@ M6 已完成：
 
 ## 7. 下一步
 
-项目所有者提供上述外部事实和账号权限后，发布负责人按
+先由 Linux/CI 对当前 commit 重建 production H5/微信产物，执行 9 项 Playwright、
+`pnpm verify:artifacts`、镜像验证和 Security workflow。随后项目所有者提供上述外部事实和账号权限，发布负责人按
 [发布检查清单](../operations/release-checklist.md) 与
 [发布运行手册](../operations/release-runbook.md) 建立 staging，重新使用真实域名构建微信产物并执行真机/体验版/云端演练。完成所有未勾选项后，才可把 M7 改为 Complete。

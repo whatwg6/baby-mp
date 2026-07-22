@@ -110,7 +110,7 @@ users 1 ── N data_rights_requests
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
 | `id` | uuid | PK | 业务用户 ID |
-| `display_name` | varchar(80) | nullable | 用户显示名称 |
+| `display_name` | varchar(80) | nullable | 用户显示名称；写入时 trim，非空值为 1–80 个 Unicode 字符 |
 | `avatar_media_id` | uuid | nullable, FK media | 用户头像 |
 | `status` | varchar(20) | not null | `active`、`disabled`、`deleted` |
 | `last_login_at` | timestamptz | nullable | 最近登录时间 |
@@ -243,7 +243,7 @@ users 1 ── N data_rights_requests
 | `object_key` | varchar(512) | not null, unique | 私有对象键 |
 | `upload_object_key` | varchar(512) | nullable, unique | 上传临时对象键，ready 后清空 |
 | `mime_type` | varchar(100) | not null | MIME 类型 |
-| `size_bytes` | bigint | not null | 文件大小；导出占位在完成前使用 0 |
+| `size_bytes` | bigint | not null | 文件大小；导出占位在完成前使用 0，未生成归档即被清理的占位保持 0 并进入 deleted |
 | `width` | integer | nullable | 图片宽度 |
 | `height` | integer | nullable | 图片高度 |
 | `sha256` | char(64) | nullable | 内容摘要 |
@@ -312,7 +312,22 @@ users 1 ── N data_rights_requests
 
 `scope` 固定为版本化结构 `{ version: 1, format: "zip", includeMedia, representations: ["json", "csv"] }`。每个请求者和宝宝同时最多存在一个 `pending`/`processing` 任务。worker 使用条件更新领取任务和续租，失败最多自动重试 3 次；完成包保留 7 天。
 
-### 4.11 审计日志 `audit_logs`
+### 4.11 Worker 心跳 `worker_heartbeats`
+
+| 字段 | 类型 | 约束 | 说明 |
+| --- | --- | --- | --- |
+| `instance_id` | uuid | PK | 单次 worker 进程实例 |
+| `worker_name` | varchar(64) | not null | 低敏 worker 类型 |
+| `started_at` | timestamptz | not null | 启动时间 |
+| `last_success_at` | timestamptz | nullable | 最近成功活性心跳或任务轮询；失败后只在真实恢复时推进 |
+| `last_failure_at` | timestamptz | nullable | 最近失败任务轮询或超时 watchdog |
+| `stopped_at` | timestamptz | nullable | 正常停止时间 |
+| `updated_at` | timestamptz | not null | 心跳更新时间 |
+
+运行指标聚合返回最近成功/失败时间、年龄以及 active/unhealthy 实例数，不对外暴露
+`instance_id`。容器自身使用 `/tmp` 中的实例专属心跳文件，避免多实例聚合掩盖故障。
+
+### 4.12 审计日志 `audit_logs`
 
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
@@ -328,7 +343,7 @@ users 1 ── N data_rights_requests
 
 重点记录：角色变更、成员移除、宝宝删除、导出创建与下载、账号注销。
 
-### 4.12 数据权利申请 `data_rights_requests`
+### 4.13 数据权利申请 `data_rights_requests`
 
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
@@ -422,6 +437,7 @@ users 1 ── N data_rights_requests
 - 宝宝性别选项和隐私展示文案。
 - 身高、体重允许的产品校验范围。
 - 管理员是否可以直接邀请另一位管理员；MVP 默认不允许。
-- 图片原图、压缩图和缩略图是否分别存储。
-- 导出任务的 `scope` 结构和最终文件格式。
 - 删除宝宝、账号注销和审计日志的最终保留期限。
+
+已实现决策：每张图片只保留一份实际上传对象；导出 `scope` 固定为版本化
+ZIP + JSON/CSV 结构，由 `includeMedia` 控制是否打包照片。

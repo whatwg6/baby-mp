@@ -37,24 +37,14 @@ async function waitUntilReady(mediaId: string, signal?: AbortSignal) {
   return media
 }
 
-function inferMimeType(path: string) {
-  const normalized = path.toLowerCase().split('?')[0] ?? path.toLowerCase()
-  if (normalized.endsWith('.png')) return 'image/png'
-  return 'image/jpeg'
-}
-
-function inferFileName(path: string, index: number) {
-  const segment = path.split('/').pop()?.split('?')[0]
-  return segment?.trim() || `photo-${index + 1}.jpg`
-}
-
 export async function chooseMediaDrafts(remaining: number): Promise<MediaDraft[]> {
   const images = await platform.chooseImages(Math.min(remaining, 9))
   return images.map((image, index) => ({
     localId: `${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`,
     localPath: image.path,
-    fileName: inferFileName(image.path, index),
-    mimeType: inferMimeType(image.path),
+    webFile: image.webFile,
+    fileName: image.fileName,
+    mimeType: image.mimeType,
     sizeBytes: image.size,
     state: 'local',
     progress: 0,
@@ -71,23 +61,35 @@ export async function uploadMediaDraft(
   if (!draft.localPath) throw new Error('本地图片已不可用，请重新选择')
   let path = draft.localPath
   let sizeBytes = draft.sizeBytes
+  let fileName = draft.fileName
+  let mimeType = draft.mimeType
+  let webFile = draft.webFile
   try {
     throwIfAborted(signal)
     onChange({ state: 'compressing', error: undefined })
-    const compressed = await mediaPlatform.compressImage({ path, size: sizeBytes }, 82)
+    const compressed = await mediaPlatform.compressImage({
+      path,
+      size: sizeBytes,
+      fileName,
+      mimeType: mimeType === 'image/png' ? 'image/png' : 'image/jpeg',
+      webFile,
+    }, 82)
     throwIfAborted(signal)
     path = compressed.path
     sizeBytes = compressed.size
+    fileName = compressed.fileName
+    mimeType = compressed.mimeType
+    webFile = compressed.webFile
     if (sizeBytes > MAX_BUFFERED_UPLOAD_BYTES) {
       throw new Error('压缩后的图片不能超过 20MB，请选择更小的图片')
     }
-    onChange({ localPath: path, sizeBytes })
+    onChange({ localPath: path, webFile, fileName, mimeType, sizeBytes })
 
     const info = await mediaPlatform.getImageInfo(path)
     throwIfAborted(signal)
     const ticket = await createMediaUpload(babyId, {
-      fileName: draft.fileName,
-      mimeType: draft.mimeType,
+      fileName,
+      mimeType,
       sizeBytes,
     }, signal)
     throwIfAborted(signal)
@@ -95,6 +97,7 @@ export async function uploadMediaDraft(
     await mediaPlatform.uploadFile({
       url: ticket.upload.url,
       path,
+      body: webFile,
       headers: ticket.upload.headers,
       onProgress: (progress) => onChange({ progress: Math.max(0, Math.min(100, progress)) }),
       signal,

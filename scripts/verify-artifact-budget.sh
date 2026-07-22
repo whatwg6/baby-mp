@@ -7,7 +7,31 @@ weapp_dir="${WEAPP_ARTIFACT_DIR:-$repo_root/apps/client/dist/weapp}"
 h5_budget="${H5_ARTIFACT_BUDGET_BYTES:-10485760}"
 h5_js_gzip_budget="${H5_JS_GZIP_BUDGET_BYTES:-2621440}"
 h5_single_js_gzip_budget="${H5_SINGLE_JS_GZIP_BUDGET_BYTES:-163840}"
-weapp_budget="${WEAPP_ARTIFACT_BUDGET_BYTES:-2097152}"
+
+resolve_weapp_budget() {
+  local canonical="${WEAPP_BUNDLE_BUDGET_BYTES:-}"
+  local legacy="${WEAPP_ARTIFACT_BUDGET_BYTES:-}"
+  local name value
+  for name in WEAPP_BUNDLE_BUDGET_BYTES WEAPP_ARTIFACT_BUDGET_BYTES; do
+    value="${!name:-}"
+    if [[ -n "$value" && ! "$value" =~ ^[1-9][0-9]*$ ]]; then
+      echo "Artifact budget failed: $name must be a positive integer" >&2
+      return 1
+    fi
+    if [[ ${#value} -gt 16 ]] ||
+      [[ ${#value} -eq 16 && "$value" > 9007199254740991 ]]; then
+      echo "Artifact budget failed: $name exceeds the safe integer range" >&2
+      return 1
+    fi
+  done
+  if [[ -n "$canonical" && -n "$legacy" && "$canonical" != "$legacy" ]]; then
+    echo 'Artifact budget failed: WEAPP_BUNDLE_BUDGET_BYTES conflicts with legacy WEAPP_ARTIFACT_BUDGET_BYTES' >&2
+    return 1
+  fi
+  printf '%s\n' "${canonical:-${legacy:-2097152}}"
+}
+
+weapp_budget="$(resolve_weapp_budget)"
 
 require_directory() {
   if [[ ! -d "$1" ]]; then

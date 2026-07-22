@@ -6,7 +6,7 @@ import { chooseMediaDrafts } from '../media/upload'
 import type { MediaDraft } from '../media/types'
 import { platform } from '../../platform'
 import {
-  formatLocalDate, toBabyInput, validateBabyForm,
+  firstBabyFormErrorField, formatLocalDate, toBabyInput, validateBabyForm,
   type BabyFormErrors, type BabyFormValues,
 } from './validation'
 
@@ -24,6 +24,7 @@ export interface BabyFormProps {
   avatar?: MediaDraft
   avatarUrl?: string | null
   onAvatarChange?: (avatar?: MediaDraft) => void
+  onDirtyChange?: (dirty: boolean) => void
   onSubmit: (input: ReturnType<typeof toBabyInput>) => Promise<void>
 }
 
@@ -39,28 +40,41 @@ export function BabyForm({
   avatar,
   avatarUrl,
   onAvatarChange,
+  onDirtyChange,
   onSubmit,
 }: BabyFormProps) {
   const [values, setValues] = useState<BabyFormValues>({ ...blankValues, ...initialValues })
   const [errors, setErrors] = useState<BabyFormErrors>({})
+  const [focusedField, setFocusedField] = useState<keyof BabyFormValues>()
   const today = useMemo(() => formatLocalDate(), [])
 
   const update = <K extends keyof BabyFormValues>(key: K, value: BabyFormValues[K]) => {
     setValues((current) => ({ ...current, [key]: value }))
     setErrors((current) => ({ ...current, [key]: undefined }))
+    setFocusedField((current) => current === key ? undefined : current)
+    onDirtyChange?.(true)
   }
 
   const submit = async () => {
     const nextErrors = validateBabyForm(values, today)
     setErrors(nextErrors)
-    if (Object.keys(nextErrors).length > 0 || loading) return
+    const firstError = firstBabyFormErrorField(nextErrors)
+    if (firstError) {
+      setFocusedField(firstError)
+      void platform.scrollToElement(`#baby-field-${firstError}`)
+      return
+    }
+    if (loading) return
     await onSubmit(toBabyInput(values))
   }
 
   const chooseAvatar = async () => {
     try {
       const [selected] = await chooseMediaDrafts(1)
-      if (selected) onAvatarChange?.(selected)
+      if (selected) {
+        onAvatarChange?.(selected)
+        onDirtyChange?.(true)
+      }
     } catch (reason) {
       await platform.showToast(reason instanceof Error ? reason.message : '选择头像失败')
     }
@@ -82,9 +96,9 @@ export function BabyForm({
         {avatar?.state === 'uploading' ? <Text className="baby-form__avatar-status">头像上传 {avatar.progress > 0 ? `${avatar.progress}%` : '中…'}</Text> : null}
         {avatar?.state === 'failed' ? <Text className="form-field__error">{avatar.error ?? '头像上传失败，可重试'}</Text> : null}
       </View>
-      <View className="form-field">
+      <View className="form-field" id="baby-field-name">
         <Text className="form-field__label">宝宝昵称 *</Text>
-        <Input value={values.name} maxlength={40} placeholder="请输入昵称" onInput={(event) => update('name', event.detail.value)} />
+        <Input focus={focusedField === 'name'} value={values.name} maxlength={40} placeholder="请输入昵称" onInput={(event) => update('name', event.detail.value)} />
         {errors.name ? <Text className="form-field__error">{errors.name}</Text> : null}
       </View>
       <View className="form-field">
@@ -96,7 +110,7 @@ export function BabyForm({
           ))}
         </View>
       </View>
-      <View className="form-field">
+      <View className="form-field" id="baby-field-birthDate">
         <Text className="form-field__label">出生日期 *</Text>
         <Picker mode="date" end={today} value={values.birthDate || today}
           onChange={(event) => update('birthDate', String(event.detail.value))}>
@@ -106,23 +120,24 @@ export function BabyForm({
         </Picker>
         {errors.birthDate ? <Text className="form-field__error">{errors.birthDate}</Text> : null}
       </View>
-      <View className="form-field">
+      <View className="form-field" id="baby-field-birthTime">
         <Text className="form-field__label">出生时间（选填）</Text>
         <Picker mode="time" value={values.birthTime || '08:00'} onChange={(event) => update('birthTime', String(event.detail.value))}>
           <View className={`picker-value${values.birthTime ? '' : ' is-placeholder'}`}>{values.birthTime || '请选择出生时间'}</View>
         </Picker>
         {values.birthTime ? <Button className="link-button" onClick={() => update('birthTime', '')}>清除时间</Button> : null}
+        {errors.birthTime ? <Text className="form-field__error">{errors.birthTime}</Text> : null}
       </View>
       <View className="form-row">
-        <View className="form-field">
+        <View className="form-field" id="baby-field-birthHeightCm">
           <Text className="form-field__label">出生身高（cm）</Text>
-          <Input type="digit" value={values.birthHeightCm} placeholder="如 50.2"
+          <Input focus={focusedField === 'birthHeightCm'} type="digit" value={values.birthHeightCm} placeholder="如 50.2"
             onInput={(event) => update('birthHeightCm', event.detail.value)} />
           {errors.birthHeightCm ? <Text className="form-field__error">{errors.birthHeightCm}</Text> : null}
         </View>
-        <View className="form-field">
+        <View className="form-field" id="baby-field-birthWeightKg">
           <Text className="form-field__label">出生体重（kg）</Text>
-          <Input type="digit" value={values.birthWeightKg} placeholder="如 3.42"
+          <Input focus={focusedField === 'birthWeightKg'} type="digit" value={values.birthWeightKg} placeholder="如 3.42"
             onInput={(event) => update('birthWeightKg', event.detail.value)} />
           {errors.birthWeightKg ? <Text className="form-field__error">{errors.birthWeightKg}</Text> : null}
         </View>

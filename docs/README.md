@@ -28,6 +28,7 @@
 ### 质量保障
 
 - [测试计划](./quality/test-plan.md)
+- [P0/P1 自动化测试追踪](./quality/automated-test-traceability.md)
 
 ### 运维发布
 
@@ -39,12 +40,9 @@
 
 ## 当前阶段
 
-项目已完成 MVP 开发前的第一版文档基线，可以交由开发 agent 初始化工程和实现首条业务链路。文档仍会随实现同步演进。后续上线前还需补充：
-
-1. 可视化高保真设计与最终视觉规范
-2. 由服务端实现生成的 OpenAPI 3 文件
-3. 隐私政策、用户协议和数据保留政策正文
-4. 部署手册、运维手册和发布检查清单
+仓库内 MVP 已完成并具备预发布条件；M7 当前等待真实 staging/production 云资源、微信平台凭据、合法域名、真机验收和正式发布证据。详细进度以
+[当前开发里程碑](./delivery/current-milestone.md) 和
+[实现状态](./delivery/implementation-status.md) 为准。
 
 ## 与开发 Agent 的使用方式
 

@@ -3,6 +3,28 @@ set -euo pipefail
 
 umask 077
 
+validate_sensitive_file() {
+  local path="$1"
+  local label="$2"
+  local mode
+  if [[ ! -f "$path" || -L "$path" ]]; then
+    echo "$label must be a regular file, not a symbolic link" >&2
+    return 1
+  fi
+  if mode="$(stat -c '%a' -- "$path" 2>/dev/null)"; then
+    :
+  elif mode="$(stat -f '%Lp' "$path" 2>/dev/null)"; then
+    :
+  else
+    echo "Unable to verify $label permissions; operation refused" >&2
+    return 1
+  fi
+  if [[ ! "$mode" =~ ^[0-7]{3,4}$ ]] || (( (8#$mode & 8#7177) != 0 )); then
+    echo "$label permissions must not be broader than 0600 (found $mode)" >&2
+    return 1
+  fi
+}
+
 for command in pg_dump; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "Missing required command: $command" >&2
@@ -18,9 +40,8 @@ if [[ -z "${PGPASSWORD:-}" && -z "${PGPASSFILE:-}" ]]; then
   echo "Supply PGPASSWORD or PGPASSFILE through the environment" >&2
   exit 1
 fi
-if [[ -n "${PGPASSFILE:-}" && ( ! -f "$PGPASSFILE" || -L "$PGPASSFILE" ) ]]; then
-  echo "PGPASSFILE must be a protected regular file" >&2
-  exit 1
+if [[ -n "${PGPASSFILE:-}" ]]; then
+  validate_sensitive_file "$PGPASSFILE" PGPASSFILE
 fi
 
 app_env="${APP_ENV:-local}"

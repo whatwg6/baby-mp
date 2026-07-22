@@ -16,6 +16,7 @@ import { HealthModule } from './health/health.module'
 import { GrowthModule } from './growth/growth.module'
 import { MediaModule } from './media/media.module'
 import { RecordsModule } from './records/records.module'
+import { UsersModule } from './users/users.module'
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { RecordsModule } from './records/records.module'
     RecordsModule,
     GrowthModule,
     HealthModule,
+    UsersModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: ApiExceptionFilter },

@@ -105,6 +105,8 @@ const environmentSchema = z
     RATE_LIMIT_LOGIN_MAX: z.coerce.number().int().min(1).max(10_000).default(10),
     RATE_LIMIT_INVITE_MAX: z.coerce.number().int().min(1).max(10_000).default(30),
     RATE_LIMIT_UPLOAD_MAX: z.coerce.number().int().min(1).max(10_000).default(60),
+    EXPORT_WORKER_MAX_ITERATION_SECONDS: z.coerce.number().int().min(300).max(86_400).default(7_200),
+    MEDIA_CLEANUP_INTERVAL_SECONDS: z.coerce.number().int().min(300).max(86_400).default(3_600),
   })
   .superRefine((environment, context) => {
     if (!['staging', 'production'].includes(environment.APP_ENV)) {

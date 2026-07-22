@@ -14,7 +14,13 @@
 - 内部指标：`GET /api/v1/health/metrics`，采集器通过 secret store 注入
   `x-internal-monitoring-token`；不得把 token 放入 URL、探针日志或看板。
 - 外部可用性：从集群外每分钟访问 HTTPS health，验证证书、DNS、网关和 API。
-- worker：每分钟检查最后一次成功轮询、待处理/processing 数和最老任务年龄。
+- worker：每分钟检查导出 worker 的 15 秒进程活性心跳、待处理/processing 数和
+  最老任务年龄，并检查媒体清理 scheduler 最近成功/失败心跳；Compose 对导出
+  worker 使用容器内实例专属心跳文件和 60 秒失联阈值，对媒体清理使用“配置间隔
+  + 5 分钟”阈值。导出活性心跳独立于普通 ZIP 耗时，避免大型合法导出被误判为
+  进程失联；连续迭代失败不会被定时心跳覆盖，单次迭代超过
+  `EXPORT_WORKER_MAX_ITERATION_SECONDS`（默认 7200 秒）后也停止成功心跳并触发失败。
+  数据库聚合指标额外返回 active/unhealthy 实例数，避免一个健康实例掩盖另一个失败实例。
 - backup：每日检查最后成功备份时间、checksum 及远端副本状态。
 
 ## 指标与初始阈值
@@ -44,7 +50,8 @@
 2. 认证：登录/刷新成功率、微信上游错误类别、限流次数。
 3. 数据库：连接、事务、锁等待、慢查询数量、CPU、容量、复制延迟（如适用）。
 4. 存储与上传：PUT/HEAD 错误率、延迟、桶容量、未完成 multipart。
-5. 导出：pending/processing/completed/failed、最老任务年龄、重试、worker lease 恢复、清理失败。
+5. 导出与后台任务：pending/processing/completed/failed、最老任务年龄、重试、
+   worker lease 恢复、导出清理失败，以及媒体孤儿清理 scheduler 的成功/失败心跳。
 6. 备份：最后成功、大小趋势、checksum、最近恢复演练时间和耗时。
 
 审计日志和运行日志分开保存、授权和设置保留期。监控平台的字段白名单只允许 environment、version、module、method、规范化 route、statusCode、durationMs、requestId 和低基数错误码。

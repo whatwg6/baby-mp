@@ -11,6 +11,18 @@ export interface BabyFormValues {
 
 export type BabyFormErrors = Partial<Record<keyof BabyFormValues, string>>
 
+const BABY_FORM_FIELD_ORDER: Array<keyof BabyFormValues> = [
+  'name',
+  'birthDate',
+  'birthTime',
+  'birthHeightCm',
+  'birthWeightKg',
+]
+
+export function firstBabyFormErrorField(errors: BabyFormErrors): keyof BabyFormValues | undefined {
+  return BABY_FORM_FIELD_ORDER.find((field) => Boolean(errors[field]))
+}
+
 function validDecimal(value: string, decimalPlaces: number) {
   return new RegExp(`^\\d+(?:\\.\\d{1,${decimalPlaces}})?$`).test(value)
 }

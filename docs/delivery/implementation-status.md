@@ -4,10 +4,10 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 当前状态 | M0–M6 Complete；M7 仓库实现与本地验收完成，外部发布工作待执行 |
+| 当前状态 | M0–M6 Complete；M7 代码收口，当前候选产物重建与外部发布工作待执行 |
 | 当前里程碑 | M7：稳定性、安全与发布（In Progress） |
-| 当前阻塞 | 正式凭据/域名、云资源、监控渠道、运营信息、体验版账号与真机均未提供 |
-| 更新日期 | 2026-07-22 |
+| 当前阻塞 | Linux/CI 候选产物尚未重建；正式凭据/域名、云资源、监控渠道、运营信息、体验版账号与真机均未提供 |
+| 更新日期 | 2026-07-23 |
 
 ## 1. 已完成的产品能力
 
@@ -23,63 +23,48 @@
 ## 2. 工程与发布能力
 
 - pnpm workspace、Taro 4 + React + TypeScript、NestJS、Prisma/PostgreSQL、S3/MinIO 和共享 contracts。
-- M1–M7 共 7 条只前进 Prisma migration；OpenAPI、共享契约、客户端和服务端保持同步。
+- M1–M7 共 9 条只前进 Prisma migration；OpenAPI、共享契约、客户端和服务端保持同步。
 - H5 和微信生产构建要求显式 HTTPS API origin；微信 AppID 固定为 `wx433aecb90d44e9fe`。
 - mock login 使用编译期 alias 分离；E2E/release Webpack 缓存键隔离，正式产物同时检查 H5 和微信包。
 - H5 toast、下载宿主和导航时序稳定；记录保存按钮保持 DOM 文本稳定，消除已知 Stencil `insertBefore` 错误。
 - H5 图片压缩临时 URL 不可读时安全回退原始本地 Blob，继续执行 20 MiB 上限、尺寸校验、私有预签名上传和失败重试。
 - Dockerfile、只读 API/worker runtime Compose、CI、Security workflow、备份/恢复、对象存储、监控、发布和回滚脚本/手册齐备。
 - `e2e/output/` 与 `.playwright-cli/` 同时从 Git 和 Docker context 排除；CI 失败附件路径已指向真实 Playwright 输出目录。
+- H5 E2E 固定输出到 `dist/h5-e2e`，不再覆盖 production `dist/h5`；正式产物门禁同时校验包体、mock login、AppID、微信 `urlCheck` 和精确 API origin。
+- 导出 worker 使用实例专属容器心跳、连续失败抑制和可配置 hard ceiling；数据库指标返回 active/unhealthy 实例数。
 - 文档已整理到 product、architecture、delivery、quality、operations 五类目录，索引和内部链接已更新。
 
 ## 3. 最新自动化与真实验收
 
-### 全量验证
-
-`TARO_APP_API_BASE_URL=https://api.example.invalid pnpm verify`：通过。
+### 当前工作树验证（2026-07-23）
 
 | 范围 | 结果 |
 | --- | --- |
-| contracts | 9 tests passed |
-| client | 67 tests passed |
-| API | 161 tests passed |
-| 合计 | 237 tests passed |
-| 其他 | lint、全部 typecheck、contracts/API build、production H5、production 微信构建通过 |
+| contracts | 11 tests passed |
+| client | 117 tests passed |
+| API | 183 tests passed |
+| 合计 | **311 tests passed** |
+| 其他 | lint、全仓 typecheck、API build、runtime preflight、Prisma validate、shell/Node 语法与 diff check 通过 |
 
-### 数据库、API 与对象存储
+- P0/P1 traceability：94/94 covered（P0=44、P1=50、partial=0、gap=0）。
+- OpenAPI 重新生成无漂移，SHA-256：
+  `3ff2a484fa8204ad60fda43bb33c85ec8305bc652ddebff1633d0ef51997f440`。
+- API HTTP 集成测试需监听临时端口，获本地权限后 34 个文件、183 项全部通过。
+- 客户端修复了数据权利深链恢复、多宝宝首页/时间轴/成长旧数据回显和时间轴分页 loading 跨 scope 残留。
+- 删除宝宝会在同一事务中把 active export 置失败并解除 `resultMediaId`；真实 M7 脚本现在要求实际 ZIP 在清理后无法通过原签名 URL 读取。
+- worker 长任务活性、连续失败 fail-closed、超时 watchdog、abort 停止心跳和多实例失败聚合均有定向测试。
 
-- 全新 PostgreSQL 数据库按顺序应用 M1–M7 全部 7 条 migration：通过。
-- `scripts/verify-ci-integration.sh`：M2–M7 真实 API/MinIO 全部通过。
-- M6 真实导出同时验证：
-  - `includeMedia=true` 的 JSON/CSV/图片内容和归属。
-  - `includeMedia=false` 无照片 entry、仍有安全媒体清单、不泄露 bucket/object key/签名 URL。
-  - 通用媒体接口不可访问导出归档，下载审计保持低敏，过期对象清理生效。
-- M7 真实隐私链路同时验证：
-  - 数据权利 `pending → processing → completed/rejected` 受控 CLI 流转。
-  - active key、`resolvedAt`、取消冲突和低敏审计一致。
-  - 删除宝宝原子撤销 pending 邀请、终止 active export、移除全部成员并让旧 token 立即失权。
-- PostgreSQL custom-format 备份、checksum、隔离恢复、迁移表、逐表行数和 media 引用：通过。
-- MinIO `exports/` 7 天生命周期、unversioned 私有桶、匿名 list/read 403：通过。
+### 既有环境证据与本轮待重跑项
 
-### H5 端到端与韧性
-
-Playwright 5 项通过（11.6 秒）：
-
-1. 登录、图文记录、时间轴、测量/成长、邀请、导出 ZIP、数据权利和退出家庭完整旅程。
-2. GET 首次 503 后有界重试并恢复页面。
-3. 快速重复点击保存只创建一条记录且使用同一幂等键。
-4. 受保护请求与 refresh 同时 401 后清空会话/宝宝缓存并返回登录。
-5. 图片预签名 PUT 连接重置后保留文字/图片草稿并显示重试入口。
-
-### 安全、产物与镜像
-
-- npm 官方源生产依赖审计：0 个已知漏洞；`fast-uri` 已固定为 `3.1.4`，Webpack 已固定为 `5.104.1`，Security workflow 对 low 及以上公告失败。
-- H5 raw：8,292,410 / 10,485,760 bytes。
-- H5 JS gzip：2,202,116 / 2,621,440 bytes；最大 chunk 134,192 / 163,840 bytes。
-- 微信包：631,930 / 2,097,152 bytes。
-- H5/微信产物均不包含“以测试用户登录”、`/auth/mock-login` 或测试身份字符串。
-- `docker build --tag baby-mp:pre-release .`：通过，构建上下文约 4.9 MiB。
-- `pnpm openapi:generate`：通过。
+- 9 条 migration 此前已在全新 PostgreSQL 顺序应用通过；真实 PostgreSQL/MinIO M2–M7、
+  备份隔离恢复、私有桶和生命周期基线也已通过。本轮未修改 migration，但修改了 M7 清理验证脚本，需由 CI 在真实服务上重跑。
+- 上一轮 Linux Playwright 为 9/9；本轮进一步覆盖多宝宝 A 缓存后切 B，调整后的 9 项需在 Linux/CI 重跑。
+- 生产依赖审计的最近证据为 0 个已知漏洞；本轮未增加依赖，Security workflow 仍需绑定当前 commit 重新执行。
+- 当前本地包体预算通过：H5 raw 8,515,814 / 10,485,760；H5 JS gzip 2,265,940 / 2,621,440；
+  最大 chunk 137,193 / 163,840；微信 631,930 / 2,097,152 bytes。
+- 当前 `dist/h5` 是旧 E2E 构建，正式语义门禁正确因 mock login 拒绝；这不是当前发布产物通过证据。
+  需要 Linux/CI 从当前 commit 重建 production H5/微信产物并运行 `pnpm verify:artifacts`。
+- 旧本地 runtime 镜像早于本轮源码修复，不能作为当前候选；镜像构建、扫描、runtime smoke 仍需重新执行。
 
 ## 4. 里程碑状态
 
@@ -92,7 +77,7 @@ Playwright 5 项通过（11.6 秒）：
 | M4 成长数据 | Complete | 身高/体重趋势、历史列表、抽样与非医疗说明完成 |
 | M5 家庭协作 | Complete | 邀请、成员角色、最后管理员和立即失权完成 |
 | M6 数据导出 | Complete | 流式 ZIP、私有归档、短下载、worker、客户端闭环和真实验收完成 |
-| M7 稳定性与发布 | In Progress | 仓库实现/本地验收完成；等待外部 staging、微信和正式发布证据 |
+| M7 稳定性与发布 | In Progress | 代码与本地自动化收口；等待当前候选产物、CI/Security、外部 staging、微信和正式发布证据 |
 
 ## 5. 已知限制与外部发布门槛
 
@@ -108,13 +93,16 @@ Playwright 5 项通过（11.6 秒）：
 
 H5 production 构建仍有 Webpack 244 KiB 建议阈值警告，但项目自己的 gzip chunk/总包门禁均通过；微信包约 0.60 MiB，未接近 2 MiB 上限。正式性能 P95 和真机触摸/安全区表现仍需 staging/真机测量。
 
+此外，当前 commit 的 production H5/微信产物、Linux Playwright、runtime 镜像与 CI/Security
+结果尚未重新生成；这些属于可执行但当前缺少运行权限/环境的候选形成步骤，不得沿用旧产物冒充。
+
 ## 6. 发布结论与下一步
 
-当前可以准确声明：**仓库内 MVP 已完成并具备预发布条件**。
+当前可以准确声明：**仓库内 MVP 代码已收口，可以进入当前 commit 的 Linux/CI 候选重建**。
 
 当前不能声明：**正式发布已完成**。
 
-项目所有者提供外部凭据、域名、云资源、运营信息和验收账号后，发布负责人按
+Linux/CI 先生成并验证不可变候选；项目所有者再提供外部凭据、域名、云资源、运营信息和验收账号，发布负责人按
 [当前里程碑](./current-milestone.md)、
 [发布检查清单](../operations/release-checklist.md) 和
 [发布运行手册](../operations/release-runbook.md) 执行剩余发布工作。全部外部证据完成后再将 M7 标记为 Complete。

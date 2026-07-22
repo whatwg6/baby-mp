@@ -145,10 +145,13 @@ status="$(request POST "/babies/${baby_id}/records" "$conflicting_note" "$admin_
 assert_status "$status" 409 'record idempotency conflict'
 
 measurement_key="$(new_uuid)"
-measurement_body="{\"type\":\"measurement\",\"occurredAt\":\"${occurred_at}\",\"content\":\"synthetic\",\"measurement\":{\"heightCm\":80.25,\"weightKg\":10.125},\"mediaIds\":[]}"
+measurement_body="{\"type\":\"measurement\",\"occurredAt\":\"${occurred_at}\",\"content\":\"synthetic measurement with photo\",\"measurement\":{\"heightCm\":80.25,\"weightKg\":10.125},\"mediaIds\":[\"${media_id}\"]}"
 status="$(request POST "/babies/${baby_id}/records" "$measurement_body" "$admin_access" "$measurement_key" "$temporary_directory/measurement.json")"
 assert_status "$status" 201 'measurement creation'
 measurement_id="$(jq -er '.data.id' "$temporary_directory/measurement.json")"
+assert_json "$temporary_directory/measurement.json" \
+  ".data.type == \"measurement\" and .data.content == \"synthetic measurement with photo\" and .data.measurement.heightCm == 80.25 and .data.measurement.weightKg == 10.125 and (.data.media | length) == 1 and .data.media[0].id == \"${media_id}\" and .data.media[0].sortOrder == 0" \
+  'measurement with photo association'
 
 milestone_key="$(new_uuid)"
 milestone_body="{\"type\":\"milestone\",\"occurredAt\":\"${occurred_at}\",\"title\":\"M3 synthetic milestone\",\"mediaIds\":[]}"
@@ -160,18 +163,52 @@ status="$(request GET "/babies/${baby_id}/records?limit=2" '{}' "$admin_access" 
 assert_status "$status" 200 'timeline first page'
 assert_json "$temporary_directory/timeline-first.json" '.data | length == 2' 'timeline first page'
 cursor="$(jq -er '.meta.nextCursor' "$temporary_directory/timeline-first.json")"
+
+# A record inserted above the cursor must not repeat or hide any record that
+# existed when the first page was read.
+inserted_at="$(node -e 'process.stdout.write(new Date(Date.now() + 30000).toISOString())')"
+inserted_body="{\"type\":\"note\",\"occurredAt\":\"${inserted_at}\",\"content\":\"M3 pagination insert\",\"mediaIds\":[]}"
+status="$(request POST "/babies/${baby_id}/records" "$inserted_body" "$admin_access" \
+  "$(new_uuid)" "$temporary_directory/pagination-insert.json")"
+assert_status "$status" 201 'timeline insertion between pages'
+inserted_id="$(jq -er '.data.id' "$temporary_directory/pagination-insert.json")"
+
 status="$(request GET "/babies/${baby_id}/records?limit=2&cursor=${cursor}" '{}' "$admin_access" '' "$temporary_directory/timeline-second.json")"
 assert_status "$status" 200 'timeline cursor page'
 assert_json "$temporary_directory/timeline-second.json" '.data | length == 1' 'timeline cursor page'
+if ! jq -s -e \
+  --arg note "$note_id" \
+  --arg measurement "$measurement_id" \
+  --arg milestone "$milestone_id" \
+  --arg inserted "$inserted_id" \
+  '([.[0].data[], .[1].data[]] | map(.id)) as $ids |
+    ($ids | length) == 3 and
+    ($ids | unique | length) == 3 and
+    (($ids | sort) == ([$note, $measurement, $milestone] | sort)) and
+    ($ids | index($inserted) == null)' \
+  "$temporary_directory/timeline-first.json" \
+  "$temporary_directory/timeline-second.json" >/dev/null; then
+  echo 'M3 verification failed: timeline insertion caused a duplicate or missed old record' >&2
+  exit 1
+fi
 
 status="$(request GET "/babies/${baby_id}/records?type=measurement&limit=20" '{}' "$admin_access" '' "$temporary_directory/measurement-filter.json")"
 assert_status "$status" 200 'timeline type filter'
 assert_json "$temporary_directory/measurement-filter.json" ".data | length == 1 and .[0].id == \"${measurement_id}\"" 'timeline type filter'
 
-status="$(request PATCH "/records/${note_id}" '{"version":1,"content":"M3 synthetic note updated"}' \
+reordered_at="$(node -e 'process.stdout.write(new Date(Date.now() + 60000).toISOString())')"
+status="$(request PATCH "/records/${note_id}" \
+  "{\"version\":1,\"content\":\"M3 synthetic note updated\",\"occurredAt\":\"${reordered_at}\"}" \
   "$admin_access" '' "$temporary_directory/note-update.json")"
 assert_status "$status" 200 'record update'
-assert_json "$temporary_directory/note-update.json" '.data.version == 2 and .data.content == "M3 synthetic note updated"' 'record update'
+assert_json "$temporary_directory/note-update.json" \
+  ".data.version == 2 and .data.content == \"M3 synthetic note updated\" and .data.occurredAt == \"${reordered_at}\"" \
+  'record occurredAt update'
+status="$(request GET "/babies/${baby_id}/records?limit=20" '{}' "$admin_access" '' "$temporary_directory/timeline-reordered.json")"
+assert_status "$status" 200 'timeline after occurredAt update'
+assert_json "$temporary_directory/timeline-reordered.json" \
+  ".data[0].id == \"${note_id}\" and .data[0].occurredAt == \"${reordered_at}\"" \
+  'timeline reordered after occurredAt update'
 status="$(request PATCH "/records/${note_id}" '{"version":1,"content":"stale"}' \
   "$admin_access" '' "$temporary_directory/note-stale.json")"
 assert_status "$status" 409 'record optimistic version conflict'
@@ -198,4 +235,38 @@ assert_status "$status" 204 'record soft delete'
 status="$(request GET "/records/${milestone_id}" '{}' "$admin_access" '' "$temporary_directory/deleted-record.json")"
 assert_status "$status" 404 'soft-deleted record read'
 
-echo 'M3 API verification passed: private media, immutable promotion, three record types, idempotency, timeline pagination/filtering, versions, soft deletion, outsider and multi-baby isolation.'
+# Deleting the current page item must remove it from a refreshed page without
+# invalidating the previously issued cursor.
+cursor_old_time="$(node -e 'process.stdout.write(new Date(Date.now() + 90000).toISOString())')"
+cursor_new_time="$(node -e 'process.stdout.write(new Date(Date.now() + 120000).toISOString())')"
+cursor_old_body="{\"type\":\"note\",\"occurredAt\":\"${cursor_old_time}\",\"content\":\"M3 cursor survivor\",\"mediaIds\":[]}"
+cursor_new_body="{\"type\":\"note\",\"occurredAt\":\"${cursor_new_time}\",\"content\":\"M3 cursor deletion target\",\"mediaIds\":[]}"
+status="$(request POST "/babies/${baby_id}/records" "$cursor_old_body" "$admin_access" \
+  "$(new_uuid)" "$temporary_directory/cursor-old.json")"
+assert_status "$status" 201 'cursor survivor creation'
+cursor_old_id="$(jq -er '.data.id' "$temporary_directory/cursor-old.json")"
+status="$(request POST "/babies/${baby_id}/records" "$cursor_new_body" "$admin_access" \
+  "$(new_uuid)" "$temporary_directory/cursor-new.json")"
+assert_status "$status" 201 'cursor deletion target creation'
+cursor_new_id="$(jq -er '.data.id' "$temporary_directory/cursor-new.json")"
+
+status="$(request GET "/babies/${baby_id}/records?limit=1" '{}' "$admin_access" '' "$temporary_directory/delete-page.json")"
+assert_status "$status" 200 'timeline page before current item deletion'
+assert_json "$temporary_directory/delete-page.json" \
+  ".data[0].id == \"${cursor_new_id}\" and (.meta.nextCursor | type == \"string\")" \
+  'current timeline item and cursor before deletion'
+delete_cursor="$(jq -er '.meta.nextCursor' "$temporary_directory/delete-page.json")"
+status="$(request DELETE "/records/${cursor_new_id}?version=1" '{}' "$admin_access" '' "$temporary_directory/delete-current.json")"
+assert_status "$status" 204 'current timeline item deletion'
+status="$(request GET "/babies/${baby_id}/records?limit=20" '{}' "$admin_access" '' "$temporary_directory/delete-refresh.json")"
+assert_status "$status" 200 'timeline refresh after current item deletion'
+assert_json "$temporary_directory/delete-refresh.json" \
+  "(.data | map(.id) | index(\"${cursor_new_id}\")) == null" \
+  'deleted current item removed from refreshed timeline'
+status="$(request GET "/babies/${baby_id}/records?limit=20&cursor=${delete_cursor}" '{}' "$admin_access" '' "$temporary_directory/delete-cursor.json")"
+assert_status "$status" 200 'timeline cursor after current item deletion'
+assert_json "$temporary_directory/delete-cursor.json" \
+  "(.data | map(.id) | index(\"${cursor_new_id}\")) == null and (.data | map(.id) | index(\"${cursor_old_id}\")) != null" \
+  'cursor remains valid after current item deletion'
+
+echo 'M3 API verification passed: private media, measurement-photo association, idempotency, stable mutation-aware pagination, occurredAt reordering, versions, soft deletion, outsider and multi-baby isolation.'

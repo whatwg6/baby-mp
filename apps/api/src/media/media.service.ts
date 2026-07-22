@@ -32,6 +32,37 @@ export class MediaService {
     @Inject(S3StorageService) private readonly storage: S3StorageService,
   ) {}
 
+  async registerCleanupHeartbeat(instanceId: string, at = new Date()): Promise<void> {
+    await this.prisma.workerHeartbeat.create({
+      data: {
+        instanceId,
+        workerName: 'media-cleanup',
+        startedAt: at,
+      },
+    })
+  }
+
+  async recordCleanupHeartbeatSuccess(instanceId: string, at = new Date()): Promise<void> {
+    await this.prisma.workerHeartbeat.updateMany({
+      where: { instanceId, workerName: 'media-cleanup', stoppedAt: null },
+      data: { lastSuccessAt: at },
+    })
+  }
+
+  async recordCleanupHeartbeatFailure(instanceId: string, at = new Date()): Promise<void> {
+    await this.prisma.workerHeartbeat.updateMany({
+      where: { instanceId, workerName: 'media-cleanup', stoppedAt: null },
+      data: { lastFailureAt: at },
+    })
+  }
+
+  async stopCleanupHeartbeat(instanceId: string, at = new Date()): Promise<void> {
+    await this.prisma.workerHeartbeat.updateMany({
+      where: { instanceId, workerName: 'media-cleanup', stoppedAt: null },
+      data: { stoppedAt: at },
+    })
+  }
+
   async createUpload(userId: string, babyId: string, input: CreateMediaUploadDto): Promise<MediaUploadResponse['data']> {
     await this.requireWritableMember(userId, babyId)
     if (!allowedMimeTypes.has(input.mimeType)) {

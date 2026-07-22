@@ -1,10 +1,16 @@
-import { authSessionSchema, successResponseSchema } from '@baby-mp/contracts'
+import {
+  authSessionSchema,
+  successResponseSchema,
+  updateCurrentUserInputSchema,
+  userSummarySchema,
+} from '@baby-mp/contracts'
 
 import { createApiClient } from '../../services/api-client'
 import { runtimeSchema } from '../../services/runtime-schema'
-import type { Session } from './types'
+import type { Session, UserSummary } from './types'
 
 const sessionResponseSchema = successResponseSchema(authSessionSchema)
+const userSummaryResponseSchema = successResponseSchema(userSummarySchema)
 const emptyResponseSchema = runtimeSchema<undefined>((value): value is undefined => value == null || value === '')
 
 export async function platformLogin(code: string): Promise<Session> {
@@ -29,4 +35,13 @@ export async function revokeSession(refreshToken: string): Promise<void> {
     path: '/api/v1/auth/logout', method: 'POST', body: { refreshToken },
     schema: emptyResponseSchema, skipRefresh: true,
   })
+}
+
+export async function updateCurrentUser(displayName: string): Promise<UserSummary> {
+  const input = updateCurrentUserInputSchema.parse({ displayName })
+  const response = await createApiClient().request({
+    path: '/api/v1/users/me', method: 'PATCH', body: input,
+    schema: userSummaryResponseSchema,
+  })
+  return response.data
 }

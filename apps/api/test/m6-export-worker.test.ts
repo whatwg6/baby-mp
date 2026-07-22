@@ -280,14 +280,144 @@ describe('M6 export worker leases and retry state machine', () => {
       expect(signal).toBe(abort.signal)
       abort.abort()
     })
+    const onIterationSuccess = vi.fn(async () => undefined)
     await runContinuousExportWorker(operations as unknown as ExportWorker, {
       signal: abort.signal,
       clock: () => now.getTime(),
       sleep,
+      onIterationSuccess,
     })
     expect(operations.processOnce).toHaveBeenCalledTimes(1)
     expect(operations.cleanupExpired).toHaveBeenCalledWith(now)
+    expect(onIterationSuccess).toHaveBeenCalledWith(now)
     expect(sleep).toHaveBeenCalledWith(2_000, abort.signal)
+  })
+
+  it('keeps liveness fresh while one valid export iteration is still running', async () => {
+    vi.useFakeTimers()
+    const abort = new AbortController()
+    const processing = deferred<boolean>()
+    const operations = {
+      processOnce: vi.fn(() => processing.promise),
+      cleanupExpired: vi.fn(async () => 0),
+    }
+    const onHeartbeat = vi.fn(async () => undefined)
+    try {
+      const loop = runContinuousExportWorker(operations as unknown as ExportWorker, {
+        signal: abort.signal,
+        clock: () => Date.now(),
+        heartbeatIntervalMilliseconds: 15_000,
+        onHeartbeat,
+      })
+      await vi.waitFor(() => expect(operations.processOnce).toHaveBeenCalledOnce())
+      expect(onHeartbeat).toHaveBeenCalledTimes(1)
+
+      await vi.advanceTimersByTimeAsync(75_000)
+      expect(onHeartbeat).toHaveBeenCalledTimes(6)
+      expect(operations.cleanupExpired).not.toHaveBeenCalled()
+
+      abort.abort()
+      processing.resolve(true)
+      await loop
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('fails closed when one iteration exceeds its hard ceiling and stops heartbeats on abort', async () => {
+    vi.useFakeTimers()
+    const abort = new AbortController()
+    const processing = deferred<boolean>()
+    const operations = {
+      processOnce: vi.fn(() => processing.promise),
+      cleanupExpired: vi.fn(async () => 0),
+    }
+    const onHeartbeat = vi.fn(async () => undefined)
+    const onIterationError = vi.fn(async () => undefined)
+    try {
+      const loop = runContinuousExportWorker(operations as unknown as ExportWorker, {
+        signal: abort.signal,
+        clock: () => Date.now(),
+        heartbeatIntervalMilliseconds: 15_000,
+        maxIterationMilliseconds: 60_000,
+        onHeartbeat,
+        onIterationError,
+      })
+      await vi.waitFor(() => expect(operations.processOnce).toHaveBeenCalledOnce())
+
+      await vi.advanceTimersByTimeAsync(75_000)
+      expect(onHeartbeat).toHaveBeenCalledTimes(5)
+      expect(onIterationError).toHaveBeenCalledOnce()
+
+      abort.abort()
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(onHeartbeat).toHaveBeenCalledTimes(5)
+      processing.resolve(true)
+      await loop
+      expect(operations.cleanupExpired).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not overwrite a failed iteration with periodic success before recovery', async () => {
+    vi.useFakeTimers()
+    const abort = new AbortController()
+    const retry = deferred<boolean>()
+    const operations = {
+      processOnce: vi.fn()
+        .mockRejectedValueOnce(new Error('dependency unavailable'))
+        .mockImplementationOnce(() => retry.promise),
+      cleanupExpired: vi.fn(async () => 0),
+    }
+    const onHeartbeat = vi.fn(async () => undefined)
+    const onIterationError = vi.fn(async () => undefined)
+    try {
+      const loop = runContinuousExportWorker(operations as unknown as ExportWorker, {
+        signal: abort.signal,
+        clock: () => Date.now(),
+        idleDelayMilliseconds: 1,
+        heartbeatIntervalMilliseconds: 15_000,
+        onHeartbeat,
+        onIterationError,
+      })
+      await vi.waitFor(() => expect(onIterationError).toHaveBeenCalledOnce())
+      await vi.advanceTimersByTimeAsync(1)
+      await vi.waitFor(() => expect(operations.processOnce).toHaveBeenCalledTimes(2))
+      await vi.advanceTimersByTimeAsync(45_000)
+      expect(onHeartbeat).toHaveBeenCalledOnce()
+
+      abort.abort()
+      retry.resolve(true)
+      await loop
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('persists low-sensitivity lifecycle heartbeats for the running worker instance', async () => {
+    const create = vi.fn(async () => ({}))
+    const updateMany = vi.fn(async () => ({ count: 1 }))
+    const subject = worker({ workerHeartbeat: { create, updateMany } })
+
+    await subject.registerHeartbeat(leaseId, now)
+    await subject.recordHeartbeatSuccess(leaseId, now)
+    await subject.recordHeartbeatFailure(leaseId, now)
+    await subject.stopHeartbeat(leaseId, now)
+
+    expect(create).toHaveBeenCalledWith({
+      data: { instanceId: leaseId, workerName: 'export-worker', startedAt: now },
+    })
+    expect(updateMany).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      where: { instanceId: leaseId, workerName: 'export-worker', stoppedAt: null },
+      data: { lastSuccessAt: now },
+    }))
+    expect(updateMany).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      data: { lastFailureAt: now },
+    }))
+    expect(updateMany).toHaveBeenNthCalledWith(3, expect.objectContaining({
+      data: { stoppedAt: now },
+    }))
   })
 })
 

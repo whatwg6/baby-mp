@@ -4,7 +4,13 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common'
-import { MediaStatus, MemberRole, Prisma, RecordType } from '@prisma/client'
+import {
+  MediaPurpose,
+  MediaStatus,
+  MemberRole,
+  Prisma,
+  RecordType,
+} from '@prisma/client'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '../src/database/prisma.service'
@@ -20,12 +26,16 @@ const mediaId = '66666666-6666-4666-8666-666666666666'
 const key = '77777777-7777-4777-8777-777777777777'
 const occurredAt = '2026-06-01T08:00:00.000Z'
 
-function membership(role: MemberRole) {
+function membership(
+  role: MemberRole,
+  babyOverrides: { birthDate?: Date; birthTime?: Date | null } = {},
+) {
   return {
     role,
     baby: {
       birthDate: new Date('2025-01-01T00:00:00.000Z'),
       birthTime: null,
+      ...babyOverrides,
     },
   }
 }
@@ -192,8 +202,80 @@ describe('M3 RecordsService authorization and validation', () => {
       type: 'note', occurredAt, mediaIds: [mediaId],
     })).rejects.toBeInstanceOf(NotFoundException)
     expect(tx.media.count).toHaveBeenCalledWith({ where: {
-      id: { in: [mediaId] }, babyId, status: MediaStatus.ready, deletedAt: null, ownerUserId: userId,
+      id: { in: [mediaId] },
+      babyId,
+      status: MediaStatus.ready,
+      purpose: MediaPurpose.record_image,
+      mimeType: { in: ['image/jpeg', 'image/png'] },
+      deletedAt: null,
+      ownerUserId: userId,
     } })
+    expect(tx.record.create).not.toHaveBeenCalled()
+  })
+
+  it('does not allow an export archive or non-image media to be linked to a record', async () => {
+    const tx = {
+      babyMember: { findFirst: vi.fn(async () => membership(MemberRole.admin)) },
+      idempotencyKey: {
+        findUnique: vi.fn(async () => null),
+        create: vi.fn(async ({ data }: { data: unknown }) => data),
+      },
+      media: { count: vi.fn(async () => 0) },
+      record: { create: vi.fn() },
+    }
+    const prisma = {
+      $transaction: vi.fn(
+        async (callback: (value: typeof tx) => Promise<unknown>) => callback(tx),
+      ),
+    }
+
+    await expect(service(prisma).create(userId, babyId, key, {
+      type: 'note', occurredAt, content: '内容', mediaIds: [mediaId],
+    })).rejects.toBeInstanceOf(NotFoundException)
+    expect(tx.media.count).toHaveBeenCalledWith({
+      where: {
+        id: { in: [mediaId] },
+        babyId,
+        status: MediaStatus.ready,
+        purpose: MediaPurpose.record_image,
+        mimeType: { in: ['image/jpeg', 'image/png'] },
+        deletedAt: null,
+      },
+    })
+    expect(tx.record.create).not.toHaveBeenCalled()
+  })
+
+  it('rejects an occurrence on the birth date before the recorded birth time', async () => {
+    const tx = {
+      babyMember: {
+        findFirst: vi.fn(async () => membership(MemberRole.admin, {
+          birthTime: new Date('1970-01-01T08:30:00.000Z'),
+        })),
+      },
+      idempotencyKey: {
+        findUnique: vi.fn(async () => null),
+        create: vi.fn(),
+      },
+      record: { create: vi.fn() },
+    }
+    const prisma = {
+      $transaction: vi.fn(
+        async (callback: (value: typeof tx) => Promise<unknown>) => callback(tx),
+      ),
+    }
+
+    await expect(service(prisma).create(userId, babyId, key, {
+      type: 'note',
+      occurredAt: '2025-01-01T08:29:59+08:00',
+      content: '内容',
+      mediaIds: [],
+    })).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'VALIDATION_FAILED',
+        details: [{ field: 'occurredAt', reason: '不能早于宝宝出生时间' }],
+      }),
+    })
+    expect(tx.idempotencyKey.create).not.toHaveBeenCalled()
     expect(tx.record.create).not.toHaveBeenCalled()
   })
 })

@@ -2,6 +2,8 @@ import type { INestApplication } from '@nestjs/common'
 import type { OpenAPIObject } from '@nestjs/swagger'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
+import { API_ERROR_CODES } from '@baby-mp/contracts'
+
 describe('M2 OpenAPI contract', () => {
   let app: INestApplication
   let document: OpenAPIObject
@@ -38,6 +40,13 @@ describe('M2 OpenAPI contract', () => {
     expect(document.paths['/api/v1/auth/refresh']?.post?.responses['401'])
       .toHaveProperty('content.application/json.schema.$ref')
     expect(document.paths['/api/v1/me']?.get?.responses['200'])
+      .toHaveProperty('content.application/json.schema.$ref')
+    const updateCurrentUser = document.paths['/api/v1/users/me']?.patch
+    expect(updateCurrentUser?.requestBody)
+      .toHaveProperty('content.application/json.schema.$ref')
+    expect(updateCurrentUser?.responses['200'])
+      .toHaveProperty('content.application/json.schema.$ref')
+    expect(updateCurrentUser?.responses['401'])
       .toHaveProperty('content.application/json.schema.$ref')
   })
 
@@ -86,10 +95,20 @@ describe('M2 OpenAPI contract', () => {
       BabyResponseDto: expect.any(Object),
       CreateBabyDto: expect.any(Object),
       UpdateBabyDto: expect.any(Object),
+      UpdateCurrentUserDto: expect.any(Object),
+      UserSummaryResponseDto: expect.any(Object),
     })
     expect(schemas.UpdateBabyDto).toHaveProperty(
       'properties.avatarMediaId',
       expect.objectContaining({ format: 'uuid', nullable: true }),
+    )
+    expect(schemas.ApiErrorDto).toHaveProperty(
+      'properties.code.enum',
+      [...API_ERROR_CODES],
+    )
+    expect(schemas.UpdateCurrentUserDto).toHaveProperty(
+      'properties.displayName',
+      expect.objectContaining({ minLength: 1, maxLength: 80 }),
     )
   })
 })

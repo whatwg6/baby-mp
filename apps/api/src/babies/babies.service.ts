@@ -50,7 +50,10 @@ export class BabiesService {
     const memberships = await this.prisma.babyMember.findMany({
       where: { userId, status: MemberStatus.active, baby: { deletedAt: null } },
       include: { baby: { include: { avatarMedia: { select: { objectKey: true, status: true } } } } },
-      orderBy: { joinedAt: 'asc' },
+      // The client restores an explicit local choice first. With no stored
+      // choice, the first result must be the space the user joined most
+      // recently, as defined by the information architecture.
+      orderBy: [{ joinedAt: 'desc' }, { id: 'desc' }],
     })
     return Promise.all(memberships.map((membership) => this.toBaby(membership.baby, membership.role)))
   }
@@ -229,6 +232,11 @@ export class BabiesService {
           where: { babyId, status: { in: [ExportStatus.pending, ExportStatus.processing] } },
           data: {
             status: ExportStatus.failed,
+            // The worker links a pending archive before it starts streaming.
+            // Unlink it in the same deletion transaction so a lost worker
+            // lease cannot leave a failed job permanently retaining a ZIP;
+            // export orphan cleanup will purge the private object safely.
+            resultMediaId: null,
             errorCode: 'BABY_DELETED',
             workerLeaseId: null,
             leaseExpiresAt: null,

@@ -2,6 +2,7 @@ import { Button, Text, View } from '@tarojs/components'
 import { useEffect, useRef, useState } from 'react'
 
 import { BabyForm } from '../../features/babies/BabyForm'
+import { useBabyFormGuard } from '../../features/babies/use-baby-form-guard'
 import { createBaby, getBaby, updateBaby } from '../../features/babies/api'
 import { addAndSelectBaby } from '../../features/babies/store'
 import type { BabyInput } from '../../features/babies/types'
@@ -17,8 +18,10 @@ export default function CreateBabyPage() {
   const [error, setError] = useState('')
   const [avatar, setAvatar] = useState<MediaDraft>()
   const [createdBaby, setCreatedBaby] = useState<Baby>()
+  const [dirty, setDirty] = useState(false)
   const idempotencyKey = useRef(platform.createIdempotencyKey())
   const uploadController = useRef<AbortController>()
+  const releaseUnsavedGuard = useBabyFormGuard(dirty)
 
   useEffect(() => () => uploadController.current?.abort(), [])
 
@@ -48,6 +51,8 @@ export default function CreateBabyPage() {
         completed = await updateBaby(baby.id, { version: baby.version, avatarMediaId: mediaId })
       }
       await addAndSelectBaby(completed)
+      await releaseUnsavedGuard()
+      setDirty(false)
       await platform.showToast('宝宝档案已创建', 'success')
       await platform.switchTab('/pages/home/index')
     } catch (reason) {
@@ -63,6 +68,8 @@ export default function CreateBabyPage() {
     setLoading(true)
     try {
       await addAndSelectBaby(await getBaby(createdBaby.id))
+      await releaseUnsavedGuard()
+      setDirty(false)
       await platform.showToast('宝宝档案已创建，可稍后补充头像', 'success')
       await platform.switchTab('/pages/home/index')
     } catch (reason) {
@@ -76,7 +83,7 @@ export default function CreateBabyPage() {
   return <View className="page-shell"><View className="page-heading"><Text className="page-title">创建宝宝档案</Text>
     <Text className="page-description">先建立宝宝资料，就可以开始记录成长。</Text></View>
     <BabyForm submitLabel={createdBaby ? '重试头像' : '创建宝宝'} loading={loading} error={error}
-      avatar={avatar} onAvatarChange={setAvatar} onSubmit={submit} />
+      avatar={avatar} onAvatarChange={setAvatar} onDirtyChange={setDirty} onSubmit={submit} />
     {createdBaby ? <Button className="secondary-button" disabled={loading}
       onClick={() => void continueWithoutAvatar()}>暂不上传头像，进入首页</Button> : null}
   </View>

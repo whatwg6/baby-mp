@@ -7,8 +7,18 @@ set -euo pipefail
 : "${S3_ACCESS_KEY:?S3_ACCESS_KEY is required}"
 : "${S3_SECRET_KEY:?S3_SECRET_KEY is required}"
 
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+export CI_S3_LIFECYCLE_PATH="$repo_root/scripts/s3-export-lifecycle.json"
+
 pnpm --filter @baby-mp/api exec tsx -e '
-  import { CreateBucketCommand, HeadBucketCommand, S3Client } from "@aws-sdk/client-s3";
+  import { readFileSync } from "node:fs";
+  import {
+    CreateBucketCommand,
+    HeadBucketCommand,
+    PutBucketLifecycleConfigurationCommand,
+    PutObjectCommand,
+    S3Client,
+  } from "@aws-sdk/client-s3";
   const client = new S3Client({
     endpoint: process.env.S3_ENDPOINT,
     region: process.env.S3_REGION,
@@ -26,6 +36,17 @@ pnpm --filter @baby-mp/api exec tsx -e '
       await client.send(new CreateBucketCommand({ Bucket: bucket }));
     }
     await client.send(new HeadBucketCommand({ Bucket: bucket }));
-    console.log("CI object-storage bucket is ready and remains private.");
+    const lifecycle = JSON.parse(readFileSync(process.env.CI_S3_LIFECYCLE_PATH, "utf8"));
+    await client.send(new PutBucketLifecycleConfigurationCommand({
+      Bucket: bucket,
+      LifecycleConfiguration: lifecycle,
+    }));
+    await client.send(new PutObjectCommand({
+      Bucket: bucket,
+      Key: "operations/private-probe.txt",
+      Body: "synthetic CI private-access probe\n",
+      ContentType: "text/plain",
+    }));
+    console.log("CI object-storage bucket, lifecycle, and private probe are ready.");
   })();
 '

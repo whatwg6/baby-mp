@@ -11,6 +11,7 @@ worker_pid=''
 api_port="${API_PORT:-3300}"
 export E2E_API_BASE_URL="${E2E_API_BASE_URL:-http://127.0.0.1:${api_port}/api/v1}"
 export H5_BASE_URL="${H5_BASE_URL:-http://127.0.0.1:10086}"
+h5_artifact_dir="${H5_E2E_ARTIFACT_DIR:-$repo_root/apps/client/dist/h5-e2e}"
 h5_port="$(node -e '
   const url = new URL(process.argv[1])
   if (url.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(url.hostname) || url.pathname !== "/") process.exit(1)
@@ -36,6 +37,11 @@ if [[ ! -x "$playwright_bin" ]]; then
   exit 1
 fi
 
+if [[ ! -f "$h5_artifact_dir/index.html" ]]; then
+  echo "H5 E2E failed: test artifact is unavailable at $h5_artifact_dir" >&2
+  exit 1
+fi
+
 (
   cd "$repo_root/apps/api"
   exec node dist/main.js
@@ -49,7 +55,7 @@ api_pid="$!"
 worker_pid="$!"
 
 (
-  cd "$repo_root/apps/client/dist/h5"
+  cd "$h5_artifact_dir"
   exec python3 -m http.server "$h5_port" --bind 127.0.0.1
 ) >"$work_dir/web.log" 2>&1 &
 web_pid="$!"

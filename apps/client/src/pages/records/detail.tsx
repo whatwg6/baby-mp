@@ -66,6 +66,11 @@ export default function RecordDetailPage() {
       if (!leftPage) {
         setError(cause instanceof Error ? cause.message : '删除失败，请重试')
         setConfirmOpen(false)
+        if (isResourceAccessError(cause)) {
+          requestRevision.current += 1
+          setRecord(undefined)
+          void loadBabies().catch(() => undefined)
+        }
       }
     } finally {
       if (!leftPage) setDeleting(false)

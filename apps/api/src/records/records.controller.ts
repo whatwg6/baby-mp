@@ -8,7 +8,6 @@ import {
   HttpStatus,
   Inject,
   Param,
-  ParseIntPipe,
   ParseUUIDPipe,
   Patch,
   Post,
@@ -40,6 +39,7 @@ import { ApiErrorResponseDto } from '../auth/auth.dto'
 import type { RequestWithContext } from '../common/http/request-context'
 import {
   CreateRecordDto,
+  DeleteRecordQueryDto,
   RecordResponseDto,
   TimelineQueryDto,
   TimelineResponseDto,
@@ -133,8 +133,8 @@ export class RecordsController {
   async remove(
     @Req() request: RequestWithContext,
     @Param('recordId', ParseUUIDPipe) recordId: string,
-    @Query('version', ParseIntPipe) version: number,
+    @Query() query: DeleteRecordQueryDto,
   ): Promise<void> {
-    await this.records.remove(request.user!.id, recordId, version)
+    await this.records.remove(request.user!.id, recordId, query.version)
   }
 }

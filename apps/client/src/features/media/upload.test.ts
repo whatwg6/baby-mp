@@ -24,7 +24,7 @@ vi.mock('./api', () => ({
 }))
 
 import type { MediaDraft } from './types'
-import { uploadMediaDraft } from './upload'
+import { chooseMediaDrafts, uploadMediaDraft } from './upload'
 
 const draft: MediaDraft = {
   localId: 'local-1',
@@ -39,7 +39,12 @@ const draft: MediaDraft = {
 describe('media upload lifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.platform.compressImage.mockResolvedValue({ path: '/tmp/compressed.jpg', size: 800 })
+    mocks.platform.compressImage.mockResolvedValue({
+      path: '/tmp/compressed.jpg',
+      size: 800,
+      fileName: 'photo.jpg',
+      mimeType: 'image/jpeg',
+    })
     mocks.platform.getImageInfo.mockResolvedValue({ width: 100, height: 200 })
     mocks.createMediaUpload.mockResolvedValue({
       mediaId: 'media-1',
@@ -53,6 +58,39 @@ describe('media upload lifecycle', () => {
       height: 200,
       sizeBytes: 800,
     })
+  })
+
+  it('preserves the browser File name and PNG MIME from selection through upload', async () => {
+    const webFile = new Blob(['png-bytes'], { type: 'image/png' })
+    mocks.platform.chooseImages.mockResolvedValue([{
+      path: 'blob:http://localhost/image-id',
+      size: webFile.size,
+      fileName: 'family-photo.png',
+      mimeType: 'image/png',
+      webFile,
+    }])
+    mocks.platform.compressImage.mockImplementation(async (image) => image)
+    mocks.platform.uploadFile.mockResolvedValue(undefined)
+
+    const [selected] = await chooseMediaDrafts(1)
+    expect(selected).toMatchObject({
+      localPath: 'blob:http://localhost/image-id',
+      fileName: 'family-photo.png',
+      mimeType: 'image/png',
+      webFile,
+    })
+
+    await uploadMediaDraft('baby-1', selected!, vi.fn())
+
+    expect(mocks.createMediaUpload).toHaveBeenCalledWith('baby-1', {
+      fileName: 'family-photo.png',
+      mimeType: 'image/png',
+      sizeBytes: webFile.size,
+    }, undefined)
+    expect(mocks.platform.uploadFile).toHaveBeenCalledWith(expect.objectContaining({
+      path: 'blob:http://localhost/image-id',
+      body: webFile,
+    }))
   })
 
   it('forwards only transport-reported progress and reaches ready', async () => {
@@ -97,6 +135,8 @@ describe('media upload lifecycle', () => {
     mocks.platform.compressImage.mockResolvedValue({
       path: '/tmp/large.jpg',
       size: 20 * 1024 * 1024 + 1,
+      fileName: 'large.jpg',
+      mimeType: 'image/jpeg',
     })
 
     await expect(uploadMediaDraft('baby-1', draft, vi.fn()))

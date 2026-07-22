@@ -2,6 +2,13 @@
 
 .record-page__toolbar { display: flex; align-items: center; gap: $space-sm; margin-bottom: $space-lg; }
 .record-page__toolbar .link-button { width: auto; margin: 0; padding: 0 $space-sm 0 0; background: transparent; color: $color-primary; font-size: $font-sm; }
+.record-type-selector__overlay { position: fixed; inset: 0; z-index: 30; display: flex; align-items: flex-end; box-sizing: border-box; background: $color-overlay; }
+.record-type-selector { width: 100%; max-height: 88vh; box-sizing: border-box; padding: $space-sm $space-md calc($space-lg + env(safe-area-inset-bottom)); overflow-y: auto; border-radius: $radius-md $radius-md 0 0; background: $color-background; }
+.record-type-selector__handle { width: 40px; height: 4px; margin: 0 auto $space-lg; border-radius: 2px; background: $color-border; }
+.record-type-selector__title, .record-type-selector__description { display: block; text-align: center; }
+.record-type-selector__title { font-size: $font-lg; font-weight: 700; }
+.record-type-selector__description { margin: $space-xs 0 $space-lg; color: $color-text-secondary; font-size: $font-sm; }
+.record-type-selector__cancel { margin-top: $space-sm; }
 .record-type-option { display: flex; align-items: center; justify-content: space-between; margin-bottom: $space-md; padding: $space-lg; border: 1px solid $color-border; border-radius: $radius-md; background: $color-surface; }
 .record-type-option__title, .record-type-option__description { display: block; }
 .record-type-option__title { font-weight: 700; }

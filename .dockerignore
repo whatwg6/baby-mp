@@ -4,6 +4,10 @@
 .codex
 **/dist
 **/node_modules
+.pnpm-store
+apps/client/.cache
+apps/client/.swc
+apps/client/.temp
 backups
 coverage
 e2e-results

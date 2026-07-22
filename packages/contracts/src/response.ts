@@ -9,7 +9,7 @@ export const successResponseSchema = <T extends z.ZodTypeAny>(data: T) =>
     data,
   })
 
-export const apiErrorCodeSchema = z.enum([
+export const API_ERROR_CODES = [
   'AUTH_REQUIRED',
   'REFRESH_TOKEN_INVALID',
   'FORBIDDEN',
@@ -31,7 +31,9 @@ export const apiErrorCodeSchema = z.enum([
   'UPLOAD_TOO_LARGE',
   'UNSUPPORTED_MEDIA_TYPE',
   'INTERNAL_ERROR',
-])
+] as const
+
+export const apiErrorCodeSchema = z.enum(API_ERROR_CODES)
 
 export const apiErrorDetailSchema = z.object({
   field: z.string().optional(),

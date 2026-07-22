@@ -11,6 +11,7 @@ import {
 import { ConfigService } from '@nestjs/config'
 import {
   MediaStatus,
+  MediaPurpose,
   MemberRole,
   MemberStatus,
   Prisma,
@@ -125,7 +126,11 @@ export class RecordsService {
         where: { userId_operation_key: { userId, operation: CREATE_OPERATION, key } },
       })
       if (existing) return this.replayId(existing.requestHash, requestHash, existing.responseBody)
-      this.validateOccurredAt(input.occurredAt, membership.baby.birthDate)
+      this.validateOccurredAt(
+        input.occurredAt,
+        membership.baby.birthDate,
+        membership.baby.birthTime,
+      )
       await tx.idempotencyKey.create({
         data: {
           userId,
@@ -211,7 +216,13 @@ export class RecordsService {
       if (!membership) throw new NotFoundException('资源不存在')
       this.assertCanManage(membership.role, record.createdBy, userId)
       this.validateUpdateForType(record.type, input)
-      if (input.occurredAt) this.validateOccurredAt(input.occurredAt, membership.baby.birthDate)
+      if (input.occurredAt) {
+        this.validateOccurredAt(
+          input.occurredAt,
+          membership.baby.birthDate,
+          membership.baby.birthTime,
+        )
+      }
       if (input.mediaIds) await this.validateMedia(tx, record.babyId, userId, membership.role, input.mediaIds)
 
       const nextTitle = input.title !== undefined ? input.title?.trim() || null : record.title
@@ -297,6 +308,8 @@ export class RecordsService {
         id: { in: mediaIds },
         babyId,
         status: MediaStatus.ready,
+        purpose: MediaPurpose.record_image,
+        mimeType: { in: ['image/jpeg', 'image/png'] },
         deletedAt: null,
         ...(role === MemberRole.admin ? {} : { ownerUserId: userId }),
       },
@@ -345,7 +358,10 @@ export class RecordsService {
   private activeMembership(client: Prisma.TransactionClient | PrismaService, userId: string, babyId: string) {
     return client.babyMember.findFirst({
       where: { userId, babyId, status: MemberStatus.active, baby: { deletedAt: null } },
-      select: { role: true, baby: { select: { birthDate: true } } },
+      select: {
+        role: true,
+        baby: { select: { birthDate: true, birthTime: true } },
+      },
     })
   }
 
@@ -355,7 +371,11 @@ export class RecordsService {
     throw new ForbiddenException('当前角色不能修改这条记录')
   }
 
-  private validateOccurredAt(value: string, birthDate: Date): void {
+  private validateOccurredAt(
+    value: string,
+    birthDate: Date,
+    birthTime?: Date | null,
+  ): void {
     const occurredAt = new Date(value)
     const timeZone = this.config.get('BUSINESS_TIME_ZONE', { infer: true })
     const occurredNaturalDate = naturalDateInTimeZone(occurredAt, timeZone)
@@ -367,6 +387,18 @@ export class RecordsService {
         details: [{ field: 'occurredAt', reason: '不能早于宝宝出生日期' }],
       })
     }
+    if (
+      birthTime &&
+      occurredNaturalDate === birthNaturalDate &&
+      this.clockTimeInTimeZone(occurredAt, timeZone) <
+        birthTime.toISOString().slice(11, 19)
+    ) {
+      throw new BadRequestException({
+        code: 'VALIDATION_FAILED',
+        message: '记录时间不能早于宝宝出生时间',
+        details: [{ field: 'occurredAt', reason: '不能早于宝宝出生时间' }],
+      })
+    }
     if (occurredAt.getTime() > Date.now() + 5 * 60 * 1000) {
       throw new BadRequestException({
         code: 'VALIDATION_FAILED',
@@ -374,6 +406,19 @@ export class RecordsService {
         details: [{ field: 'occurredAt', reason: '不能超过当前时间 5 分钟' }],
       })
     }
+  }
+
+  private clockTimeInTimeZone(value: Date, timeZone: string): string {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(value)
+    const part = (type: Intl.DateTimeFormatPartTypes) =>
+      parts.find((item) => item.type === type)?.value ?? ''
+    return `${part('hour')}:${part('minute')}:${part('second')}`
   }
 
   private assertIdempotencyKey(key: string): void {

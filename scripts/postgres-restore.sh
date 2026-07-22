@@ -3,6 +3,28 @@ set -euo pipefail
 
 umask 077
 
+validate_sensitive_file() {
+  local path="$1"
+  local label="$2"
+  local mode
+  if [[ ! -f "$path" || -L "$path" ]]; then
+    echo "$label must be a regular file, not a symbolic link" >&2
+    return 1
+  fi
+  if mode="$(stat -c '%a' -- "$path" 2>/dev/null)"; then
+    :
+  elif mode="$(stat -f '%Lp' "$path" 2>/dev/null)"; then
+    :
+  else
+    echo "Unable to verify $label permissions; restore refused" >&2
+    return 1
+  fi
+  if [[ ! "$mode" =~ ^[0-7]{3,4}$ ]] || (( (8#$mode & 8#7177) != 0 )); then
+    echo "$label permissions must not be broader than 0600 (found $mode)" >&2
+    return 1
+  fi
+}
+
 if [[ "$#" -ne 1 ]]; then
   echo "Usage: $0 /protected/path/database.dump[.age]" >&2
   exit 2
@@ -23,9 +45,8 @@ if [[ -z "${PGPASSWORD:-}" && -z "${PGPASSFILE:-}" ]]; then
   echo "Supply PGPASSWORD or PGPASSFILE through the environment" >&2
   exit 1
 fi
-if [[ -n "${PGPASSFILE:-}" && ( ! -f "$PGPASSFILE" || -L "$PGPASSFILE" ) ]]; then
-  echo "PGPASSFILE must be a protected regular file" >&2
-  exit 1
+if [[ -n "${PGPASSFILE:-}" ]]; then
+  validate_sensitive_file "$PGPASSFILE" PGPASSFILE
 fi
 
 backup_path="$1"
@@ -107,10 +128,7 @@ restore_args=(
 echo "Checksum valid; restoring into the confirmed empty target..." >&2
 if [[ "$backup_path" == *.age ]]; then
   : "${AGE_IDENTITY_FILE:?AGE_IDENTITY_FILE is required for an encrypted backup}"
-  if [[ ! -f "$AGE_IDENTITY_FILE" || -L "$AGE_IDENTITY_FILE" ]]; then
-    echo "AGE_IDENTITY_FILE must be a protected regular file" >&2
-    exit 1
-  fi
+  validate_sensitive_file "$AGE_IDENTITY_FILE" AGE_IDENTITY_FILE
   if ! command -v age >/dev/null 2>&1; then
     echo "The age command is required for an encrypted backup" >&2
     exit 1
