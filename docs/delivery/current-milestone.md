@@ -50,7 +50,7 @@ M6 已完成：
 - 所有宝宝域资源由服务端实时查询成员关系；不信任客户端角色或归属声明。
 - 完成删除宝宝、退出家庭、数据访问/更正/账号注销申请及受控状态流转；软删除、人工处理和物理删除证据在文案中严格区分。
 - 安全头、请求体上限、低敏规范路由日志、5xx 脱敏、内部 metrics token、单实例限流和生产环境启动校验已实现。
-- `fast-uri` 固定为已修复的 `3.1.4`；npm 官方源生产依赖审计为 2 个 low、0 个 high/critical。
+- `fast-uri` 固定为已修复的 `3.1.4`，Webpack 升级并固定为 `5.104.1`；npm 官方源生产依赖审计为 0 个已知漏洞，Security workflow 对 low 及以上公告失败。
 - 微信 AppID 统一为 `wx433aecb90d44e9fe`；AppSecret 只允许由部署 secret store 注入。
 
 ### 运维与发布
@@ -76,11 +76,11 @@ M6 已完成：
 - PostgreSQL 备份与隔离恢复：通过；逐表行数、迁移和媒体引用一致。
 - MinIO：7 天导出生命周期、未启用 versioning、匿名 list/read 403：通过。
 - `pnpm verify:artifacts` 与客户端发布产物检查：通过。
-  - H5 raw：8,292,411 / 10,485,760 bytes。
-  - H5 JS gzip：2,174,019 / 2,621,440 bytes。
-  - 最大 H5 chunk gzip：132,319 / 163,840 bytes。
-  - 微信包：631,921 / 2,097,152 bytes。
-- `pnpm --registry=https://registry.npmjs.org audit --prod --audit-level high`：通过；仅 2 个 low。
+  - H5 raw：8,292,410 / 10,485,760 bytes。
+  - H5 JS gzip：2,202,116 / 2,621,440 bytes。
+  - 最大 H5 chunk gzip：134,192 / 163,840 bytes。
+  - 微信包：631,930 / 2,097,152 bytes。
+- `pnpm --registry=https://registry.npmjs.org audit --prod --audit-level low`：通过；0 个已知漏洞。
 - `pnpm openapi:generate`：通过。
 - `docker build --tag baby-mp:pre-release .`：通过；构建上下文约 4.9 MiB。
 
@@ -90,7 +90,7 @@ M6 已完成：
 - [x] 空数据库前进迁移和真实 API/对象存储集成通过。
 - [x] 弱网恢复、重复点击、上传中断和会话失效有自动化证据。
 - [x] 所有高风险资源访问保持服务端实时授权和低敏日志。
-- [x] 生产依赖无已知 high/critical 漏洞。
+- [x] 生产依赖无已知漏洞。
 - [x] 本地备份恢复、私有桶和生命周期基线可执行。
 - [x] H5/微信正式产物不包含 mock login，且包体在项目门限内。
 - [x] 用户协议、隐私政策、数据处理申请、退出家庭和删除宝宝路径可达。

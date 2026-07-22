@@ -50,7 +50,7 @@
       "fast-uri": "3.1.4",
       "swiper": "12.1.2",
       "uuid": "11.1.1",
-      "webpack": "5.94.0",
+      "webpack": "5.104.1",
       "webpack-dev-server": "5.2.6"
     }
   }

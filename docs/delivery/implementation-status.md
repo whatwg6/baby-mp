@@ -73,10 +73,10 @@ Playwright 5 项通过（11.6 秒）：
 
 ### 安全、产物与镜像
 
-- npm 官方源生产依赖审计：2 low，0 high/critical；`fast-uri` 已固定为 `3.1.4`。
-- H5 raw：8,292,411 / 10,485,760 bytes。
-- H5 JS gzip：2,174,019 / 2,621,440 bytes；最大 chunk 132,319 / 163,840 bytes。
-- 微信包：631,921 / 2,097,152 bytes。
+- npm 官方源生产依赖审计：0 个已知漏洞；`fast-uri` 已固定为 `3.1.4`，Webpack 已固定为 `5.104.1`，Security workflow 对 low 及以上公告失败。
+- H5 raw：8,292,410 / 10,485,760 bytes。
+- H5 JS gzip：2,202,116 / 2,621,440 bytes；最大 chunk 134,192 / 163,840 bytes。
+- 微信包：631,930 / 2,097,152 bytes。
 - H5/微信产物均不包含“以测试用户登录”、`/auth/mock-login` 或测试身份字符串。
 - `docker build --tag baby-mp:pre-release .`：通过，构建上下文约 4.9 MiB。
 - `pnpm openapi:generate`：通过。
