@@ -27,8 +27,9 @@ const cacheVariant = createHash('sha256')
   .update(`${isE2eBuild ? 'e2e' : 'release'}\0${apiBaseUrl}`)
   .digest('hex')
   .slice(0, 12)
+const environmentConfig = isDevelopment ? devConfig : prodConfig
 
-const baseConfig: UserConfigExport = {
+const baseConfig = {
   projectName: 'baby-mp-client',
   date: '2026-07-16',
   designWidth: 375,
@@ -123,9 +124,20 @@ const baseConfig: UserConfigExport = {
       },
     },
   },
-}
+} satisfies UserConfigExport<'webpack5'>
 
 export default defineConfig<'webpack5'>(() => ({
   ...baseConfig,
-  ...(isDevelopment ? devConfig : prodConfig),
+  ...environmentConfig,
+  // Taro configuration is a plain object at this point. Preserve the shared
+  // platform settings when an environment adds a small override such as the
+  // dev-server host or production source-map policy.
+  mini: {
+    ...baseConfig.mini,
+    ...environmentConfig.mini,
+  },
+  h5: {
+    ...baseConfig.h5,
+    ...environmentConfig.h5,
+  },
 }))
