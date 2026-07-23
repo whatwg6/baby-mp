@@ -82,6 +82,30 @@ jobs:
           pnpm openapi:generate
           git diff --exit-code -- apps/api/openapi/openapi.json
 
+      - name: Generate and verify production-mode client evidence manifest
+        env:
+          CI: 'true'
+          ALLOW_TEST_RELEASE_API_ORIGIN: 'true'
+          EXPECTED_RELEASE_API_ORIGIN: https://api.example.invalid
+          RELEASE_COMMIT_SHA: ${{ github.sha }}
+          RELEASE_VERSION: 0.1.0-ci.${{ github.run_number }}.${{ github.run_attempt }}
+        run: |
+          test "$RELEASE_COMMIT_SHA" = "$(git rev-parse HEAD)"
+          pnpm release:manifest
+          pnpm release:manifest:verify
+
+      - name: Upload verified production-mode client evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: baby-mp-client-production-mode-evidence-${{ github.sha }}
+          path: |
+            apps/client/dist/h5/
+            apps/client/dist/weapp/
+            apps/client/dist/release-manifest.json
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 9
+
   integration:
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -387,9 +411,8 @@ jobs:
           BABY_MP_IMAGE: baby-mp@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
         run: |
           deploy/runtime-compose.sh --preflight-only
-          services="$(deploy/runtime-compose.sh --profile migration config --services | sort)"
-          expected="$(printf '%s\n' api export-worker media-cleanup migrate | sort)"
-          test "$services" = "$expected"
+          deploy/runtime-compose.sh --profile migration config --format json \
+            | node scripts/verify-runtime-compose.mjs
           if BABY_MP_IMAGE=baby-mp:latest deploy/runtime-compose.sh --preflight-only >/dev/null 2>&1; then
             echo 'Runtime compose accepted a mutable image reference' >&2
             exit 1

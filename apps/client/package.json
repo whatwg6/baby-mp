@@ -11,6 +11,8 @@
     "build:h5:e2e": "NODE_ENV=production TARO_APP_E2E=true taro build --type h5",
     "build:weapp": "NODE_ENV=production taro build --type weapp",
     "check:release-artifacts": "node scripts/check-release-artifacts.mjs",
+    "create:release-manifest": "node scripts/create-release-manifest.mjs",
+    "verify:release-manifest": "node scripts/verify-release-manifest.mjs",
     "lint": "eslint src --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

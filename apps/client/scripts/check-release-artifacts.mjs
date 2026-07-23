@@ -56,6 +56,8 @@ const devConfig = JSON.parse(await readFile(
   'utf8',
 ))
 const builtConfig = JSON.parse(await readFile(join(weappRoot, 'project.config.json'), 'utf8'))
+const allWeappFiles = await filesBelow(weappRoot)
+const allH5Files = await filesBelow(h5Root)
 const h5Index = await readFile(join(h5Root, 'index.html'), 'utf8')
 const h5Favicon = await readFile(join(h5Root, 'favicon.svg'), 'utf8')
 const expectedApiOrigin = resolveExpectedReleaseApiOrigin()
@@ -70,8 +72,12 @@ for (const [label, config] of [['生产源配置', prodConfig], ['微信生产�
 assert(JSON.stringify(builtConfig) === JSON.stringify(prodConfig), '微信产物 project.config.json 不是生产配置')
 assert(h5Index.includes('href="/favicon.svg"'), 'H5 产物未引用 favicon.svg')
 assert(h5Favicon.trim().length > 0, 'H5 favicon.svg 为空')
+assert(
+  ![...allWeappFiles, ...allH5Files].some((path) => path.endsWith('.map')),
+  '生产产物不得包含 source map',
+)
 
-const weappFiles = (await filesBelow(weappRoot)).filter((path) => !path.endsWith('.map'))
+const weappFiles = allWeappFiles
 const weappBytes = (await Promise.all(weappFiles.map(async (path) => (await stat(path)).size)))
   .reduce((sum, size) => sum + size, 0)
 const weappJavaScript = weappFiles.filter((path) => path.endsWith('.js'))
@@ -86,7 +92,7 @@ assert(
   `微信主包 ${weappBytes} bytes 超过预算 ${WEAPP_BUDGET_BYTES} bytes`,
 )
 
-const h5JavaScript = (await filesBelow(h5Root)).filter((path) => path.endsWith('.js'))
+const h5JavaScript = allH5Files.filter((path) => path.endsWith('.js'))
 const h5JavaScriptContents = await Promise.all(h5JavaScript.map((path) => readFile(path, 'utf8')))
 const h5BundleText = h5JavaScriptContents.join('\n')
 assert(!h5BundleText.includes('以测试用户登录'), 'H5 生产产物包含测试登录入口')

@@ -31,6 +31,8 @@
     "verify:m7:api": "scripts/verify-m7-api.sh",
     "verify:artifact-budgets": "scripts/verify-artifact-budget.sh",
     "verify:artifacts": "pnpm verify:artifact-budgets && pnpm --filter @baby-mp/client check:release-artifacts",
+    "release:manifest": "pnpm --filter @baby-mp/client create:release-manifest",
+    "release:manifest:verify": "pnpm --filter @baby-mp/client verify:release-manifest",
     "db:generate": "pnpm --filter @baby-mp/api prisma:generate",
     "db:migrate": "pnpm --filter @baby-mp/api prisma:migrate",
     "db:deploy": "pnpm --filter @baby-mp/api prisma:deploy",

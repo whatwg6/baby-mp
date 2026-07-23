@@ -31,7 +31,18 @@ runtime_env=(
   --env BABY_MP_IMAGE_REF="$runtime_image_reference"
 )
 
-docker run --rm "${runtime_env[@]}" "$RUNTIME_IMAGE" node -e '
+runtime_security=(
+  --read-only
+  --tmpfs /tmp:size=64m,mode=1777
+  --security-opt no-new-privileges=true
+  --cap-drop ALL
+  --pids-limit 256
+  --log-driver json-file
+  --log-opt max-size=10m
+  --log-opt max-file=3
+)
+
+docker run --rm "${runtime_security[@]}" "${runtime_env[@]}" "$RUNTIME_IMAGE" node -e '
   const { existsSync } = require("node:fs");
   const pkg = require("./package.json");
   const expected = {
@@ -69,6 +80,6 @@ docker run --rm "${runtime_env[@]}" "$RUNTIME_IMAGE" node -e '
   }
 '
 
-docker run --rm "${runtime_env[@]}" "$RUNTIME_IMAGE" pnpm run prisma:deploy -- --help >/dev/null
+docker run --rm "${runtime_security[@]}" "${runtime_env[@]}" "$RUNTIME_IMAGE" pnpm run prisma:deploy -- --help >/dev/null
 
 echo 'Runtime image verification passed: production package, Prisma migration CLI, operational entries and dependency exclusions are correct.'

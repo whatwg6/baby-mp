@@ -8,6 +8,8 @@
 
 - [ ] 范围仅含批准的 MVP；版本说明与 migration 列表完成
 - [ ] `TARO_APP_API_BASE_URL=https://<release-api-origin> pnpm verify`、OpenAPI 生成及里程碑 API 验证通过；微信包体预算统一使用 `WEAPP_BUNDLE_BUDGET_BYTES`（旧 `WEAPP_ARTIFACT_BUDGET_BYTES` 仅兼容迁移，不得配置冲突值）
+- [ ] H5/微信产物不含 source map；`release-manifest.json` 绑定完整 40 位 commit、版本、精确 API origin、正式 AppID 和全部文件 SHA-256，下载后以相同环境运行 `pnpm release:manifest:verify`
+- [ ] CI 中使用 `https://api.example.invalid` 的上传件只标记为 production-mode 证据；可部署候选必须由受控发布任务使用真实 HTTPS API origin 从获批 commit 重新构建并复验
 - [ ] P0 全部通过，P1 核心用例通过率 100%，无未关闭 S0/S1
 - [ ] 所有宝宝域接口权限矩阵与多宝宝隔离通过
 - [ ] 弱网、超时、重复点击、上传中断、会话过期通过
@@ -46,6 +48,7 @@
 ## 放量与观察
 
 - [ ] production 配置检查通过：mock auth 关闭、CORS 精确、无示例 secret/local 地址
+- [ ] API、export worker、media cleanup 和 migration 运行时均为只读根文件系统、临时 `/tmp`、无额外 capabilities、`no-new-privileges`、PID 上限和有界日志轮转；非 Compose 平台提供等效控制
 - [ ] 迁移、API、worker 按顺序部署，烟测通过
 - [ ] 30 分钟观察无 Critical 指标或新 S0/S1
 - [ ] 审核材料和版本说明已复核

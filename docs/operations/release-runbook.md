@@ -13,7 +13,7 @@
 ## 部署顺序
 
 1. 冻结候选 commit，记录版本、变更范围和 migration 列表。
-2. CI 通过 lint、typecheck、tests、API/客户端构建、依赖高危扫描和 secret 扫描。
+2. CI 通过 lint、typecheck、tests、API/客户端构建、依赖高危扫描和 secret 扫描；生成并复验绑定完整 commit、API origin、正式 AppID 和逐文件 SHA-256 的客户端 manifest。
 3. 在 staging 注入配置，验证 API 配置启动保护；构建微信体验版。
 4. 执行加密备份并验证 checksum。
 5. 在 staging 从备份创建隔离恢复库，完成恢复和 migration 演练。
@@ -24,6 +24,20 @@
 10. 提交微信审核；审核通过后按批准时间发布，持续观察关键指标。
 
 数据库 migration 必须先与旧版本应用兼容。若不能做到 expand/contract，则安排写入维护窗口，并将明确的停机步骤和回退数据库写入本次发布计划。
+
+## 客户端候选产物
+
+普通 CI 使用 `https://api.example.invalid` 构建并上传名称含
+`production-mode-evidence` 和完整 `${{ github.sha }}` 的 H5/微信证据。它用于证明生产模式构建、安全边界、包体和 manifest 链路，**不是可直接部署的正式产物**；PR 事件中的 SHA 还可能是 GitHub 生成的合并 commit。
+
+正式候选必须从已批准的 main/tag commit，在受控发布环境中设置真实
+`TARO_APP_API_BASE_URL`、`EXPECTED_RELEASE_API_ORIGIN`、完整 `RELEASE_COMMIT_SHA` 和不可变
+`RELEASE_VERSION`，重新执行构建、`pnpm verify:artifacts`、`pnpm release:manifest` 与
+`pnpm release:manifest:verify`。下载/转交后必须再次以相同元数据运行复验；任何文件被修改、缺失、多出，出现 source map/符号链接，或 commit、origin、AppID、版本不一致均拒绝发布。
+
+Runtime Compose 对 API、export worker、media cleanup 和 migration 统一启用只读根文件系统、临时
+`/tmp`、`no-new-privileges`、删除全部 Linux capabilities、256 PID 上限及 10 MiB × 3 的
+`json-file` 日志轮转。CI 会对渲染后的 Compose JSON 逐服务断言，并在相同安全参数下验证 Node 入口与 Prisma migration CLI。若生产平台不是 Docker Compose，发布记录必须提供平台侧等效控制和日志驱动证据。
 
 ## 烟测
 

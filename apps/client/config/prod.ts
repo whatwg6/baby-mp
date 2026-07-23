@@ -1,8 +1,12 @@
 import type { UserConfigExport } from '@tarojs/cli'
 
 const config: UserConfigExport = {
-  mini: {},
-  h5: {},
+  mini: {
+    enableSourceMap: false,
+  },
+  h5: {
+    enableSourceMap: false,
+  },
 }
 
 export default config

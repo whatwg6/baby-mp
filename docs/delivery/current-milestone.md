@@ -63,6 +63,8 @@ M6 已完成：
 - 本地 MinIO 验证 7 天 `exports/` 生命周期、禁用版本保留、私有桶以及匿名列举/读取拒绝。
 - 正式 H5/微信产物门禁检查包体、AppID、`urlCheck`、API origin 和 mock-login 字符串；
   E2E 使用独立 `dist/h5-e2e`，不会覆盖 `dist/h5`，失败附件不进入 Git 或 Docker build context。
+- CI production-mode 证据产物生成 manifest，绑定完整 commit、版本、精确 API origin、正式 AppID 与 H5/微信全部文件 SHA-256；独立复验拒绝修改、缺失、多出、source map、符号链接或元数据失配。
+- Runtime Compose 对 API、worker、cleanup 和 migration 统一启用只读根文件系统、临时 `/tmp`、`no-new-privileges`、删除全部 capabilities、PID 上限和有界日志轮转；CI 校验渲染结果并以相同限制验证镜像入口。
 - 导出 worker 使用实例专属活性文件、连续失败抑制和 2 小时默认迭代 watchdog；
   多实例聚合指标不会由一个健康实例掩盖另一个失败实例。
 
@@ -71,17 +73,17 @@ M6 已完成：
 2026-07-23 对当前工作树实际执行：
 
 - `pnpm lint`、`pnpm typecheck`、API build：通过。
-- contracts：11 项；client：117 项；API：183 项；合计 **311 项全部通过**。
+- contracts：11 项；client：125 项；API：183 项；合计 **319 项全部通过**。
 - `pnpm verify:traceability`：94/94 个 P0/P1 用例 covered（P0=44、P1=50、gap=0）。
 - runtime preflight：安全 staging/production 配置通过，mock auth、示例密钥、本地端点和不安全生产配置均被拒绝。
 - Prisma schema validate：通过；当前 M1–M7 共 **9 条**只前进 migration。9 条 migration 此前已在全新 PostgreSQL 连续应用通过，本轮未改变迁移内容。
 - `pnpm openapi:generate`：无漂移；SHA-256 为
   `3ff2a484fa8204ad60fda43bb33c85ec8305bc652ddebff1633d0ef51997f440`。
-- shell/Node 语法、`git diff --check`：通过。
+- shell/Node 语法、manifest 生成/复验篡改测试、Runtime Compose 合成结构校验、`git diff --check`：通过。
 - 删除宝宝现在原子解除活动导出归档引用；M7 真实链路脚本会生成实际私有 ZIP，删除宝宝后执行清理并要求旧签名 URL 返回 404。
 - Playwright 的上一轮 Linux 证据为 9/9；本轮补强了多宝宝缓存隔离和真实归档/超时场景，调整后的 9 项仍需在 Linux/CI 重跑。
-- 当前本地包体预算仍通过（H5 raw 8,515,814；H5 JS gzip 2,265,940；最大 chunk 137,193；微信 631,930 bytes），
-  但 `dist/h5` 是旧 E2E 产物，正式语义门禁正确拒绝其 mock-login。当前 commit 的 production H5/微信产物必须由 Linux/CI 重新生成，旧镜像也不能作为候选证据。
+- 上一轮本地包体预算通过（H5 raw 8,515,814；H5 JS gzip 2,265,940；最大 chunk 137,193；微信 631,930 bytes），
+  但当前本地 H5 production 目录为空，微信目录是含 source map 的旧产物，新门禁会正确拒绝。当前 commit 的 production H5/微信产物必须由 Linux/CI 重新生成，旧镜像也不能作为候选证据。
 - 2026-07-22 的既有环境证据仍包括：9 条 migration、真实 PostgreSQL/MinIO M2–M7、
   PostgreSQL 备份隔离恢复、MinIO 私有桶/生命周期以及生产依赖审计 0 个已知漏洞；
   本轮新增脚本和 E2E 调整需要 CI 再执行，不能用旧输出冒充当前候选。
@@ -120,6 +122,7 @@ M6 已完成：
 ## 7. 下一步
 
 先由 Linux/CI 对当前 commit 重建 production H5/微信产物，执行 9 项 Playwright、
-`pnpm verify:artifacts`、镜像验证和 Security workflow。随后项目所有者提供上述外部事实和账号权限，发布负责人按
+`pnpm verify:artifacts`、manifest 生成/复验、镜像验证和 Security workflow。普通 CI 中绑定
+`https://api.example.invalid` 的上传件仅是 production-mode 证据；随后项目所有者提供真实 API origin、上述外部事实和账号权限，发布负责人按
 [发布检查清单](../operations/release-checklist.md) 与
 [发布运行手册](../operations/release-runbook.md) 建立 staging，重新使用真实域名构建微信产物并执行真机/体验版/云端演练。完成所有未勾选项后，才可把 M7 改为 Complete。
