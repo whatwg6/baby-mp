@@ -1,0 +1,7 @@
+interface:
+  display_name: "Baby MP Project Status"
+  short_description: "Inspect and report the verified Baby MP delivery status"
+  default_prompt: "Use $inspect-baby-mp-status to inspect the current Baby MP project status and recommend one next step."
+
+policy:
+  allow_implicit_invocation: true

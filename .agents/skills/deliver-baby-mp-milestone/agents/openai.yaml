@@ -1,0 +1,7 @@
+interface:
+  display_name: "Baby MP Milestone Delivery"
+  short_description: "Execute and verify an approved Baby MP milestone step"
+  default_prompt: "Use $deliver-baby-mp-milestone to execute the approved Baby MP milestone work and verify its acceptance criteria."
+
+policy:
+  allow_implicit_invocation: true
