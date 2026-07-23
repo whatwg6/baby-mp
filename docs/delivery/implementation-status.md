@@ -19,6 +19,7 @@
 - 管理员异步数据导出、流式 ZIP、JSON/CSV、可选照片、私有归档、短签名下载、限流、幂等、重试和清理。
 - 隐私政策、用户协议、数据访问/更正/账号注销申请、申请取消/受控处理、宝宝软删除和立即失权。
 - API liveness/readiness/内部低敏 metrics、安全头、请求体上限、规范化日志、限流和生产环境配置拒绝策略。
+- Swagger UI 已使用文档路由专用的最小同源 CSP，修复全局 `default-src 'none'` 导致的白屏，同时保持普通 API 严格 CSP 和非本地内部 token 门禁。
 
 ## 2. 工程与发布能力
 
@@ -44,14 +45,15 @@
 | --- | --- |
 | contracts | 11 tests passed |
 | client | 125 tests passed |
-| API | 183 tests passed |
-| 合计 | **319 tests passed** |
+| API | 184 tests passed |
+| 合计 | **320 tests passed** |
 | 其他 | lint、全仓 typecheck、API build、runtime preflight、Prisma validate、shell/Node 语法与 diff check 通过 |
 
 - P0/P1 traceability：94/94 covered（P0=44、P1=50、partial=0、gap=0）。
 - OpenAPI 重新生成无漂移，SHA-256：
   `3ff2a484fa8204ad60fda43bb33c85ec8305bc652ddebff1633d0ef51997f440`。
-- API HTTP 集成测试需监听临时端口，获本地权限后 34 个文件、183 项全部通过。
+- API HTTP 集成测试需监听临时端口，获本地权限后 34 个文件、184 项全部通过。
+- Swagger CSP 修复后，安全头/内部访问 8 项定向测试、API typecheck 与 lint 通过；Chrome 实测文档 UI、样式和脚本正常加载。
 - 客户端修复了数据权利深链恢复、多宝宝首页/时间轴/成长旧数据回显和时间轴分页 loading 跨 scope 残留。
 - 删除宝宝会在同一事务中把 active export 置失败并解除 `resultMediaId`；真实 M7 脚本现在要求实际 ZIP 在清理后无法通过原签名 URL 读取。
 - worker 长任务活性、连续失败 fail-closed、超时 watchdog、abort 停止心跳和多实例失败聚合均有定向测试。

@@ -19,8 +19,12 @@ describe('HTTP security controls', () => {
     const response = { setHeader: vi.fn() }
     const next = vi.fn()
 
-    middleware.use({} as never, response as never, next)
+    middleware.use({ path: '/api/v1/health' } as never, response as never, next)
 
+    expect(response.setHeader).toHaveBeenCalledWith(
+      'Content-Security-Policy',
+      "default-src 'none'; frame-ancestors 'none'",
+    )
     expect(response.setHeader).toHaveBeenCalledWith(
       'X-Content-Type-Options',
       'nosniff',
@@ -28,6 +32,35 @@ describe('HTTP security controls', () => {
     expect(response.setHeader).toHaveBeenCalledWith(
       'Strict-Transport-Security',
       'max-age=31536000; includeSubDomains',
+    )
+    expect(next).toHaveBeenCalledOnce()
+  })
+
+  it('allows only the resources required by the protected Swagger UI', () => {
+    const config = {
+      get: vi.fn(() => 'local'),
+    } as unknown as ConfigService<Environment, true>
+    const middleware = new SecurityHeadersMiddleware(config)
+    const response = { setHeader: vi.fn() }
+    const next = vi.fn()
+
+    middleware.use(
+      { path: '/api/docs/swagger-ui.css' } as never,
+      response as never,
+      next,
+    )
+
+    expect(response.setHeader).toHaveBeenCalledWith(
+      'Content-Security-Policy',
+      [
+        "default-src 'none'",
+        "script-src 'self'",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data:",
+        "font-src 'self'",
+        "connect-src 'self'",
+        "frame-ancestors 'none'",
+      ].join('; '),
     )
     expect(next).toHaveBeenCalledOnce()
   })

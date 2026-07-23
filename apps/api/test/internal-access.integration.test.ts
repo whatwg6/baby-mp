@@ -89,6 +89,25 @@ describe('production-like internal HTTP access', () => {
         openapi: expect.stringMatching(/^3\./),
         info: { title: 'Baby MP API' },
       })
+
+      const documentation = await request(app.getHttpServer())
+        .get('/api/docs')
+        .set(INTERNAL_TOKEN_HEADER, internalToken)
+        .expect(200)
+      expect(documentation.headers['content-security-policy']).toContain(
+        "script-src 'self'",
+      )
+      expect(documentation.headers['content-security-policy']).toContain(
+        "style-src 'self' 'unsafe-inline'",
+      )
+
+      const stylesheet = await request(app.getHttpServer())
+        .get('/api/docs/swagger-ui.css')
+        .set(INTERNAL_TOKEN_HEADER, internalToken)
+        .expect(200)
+      expect(stylesheet.headers['content-security-policy']).toContain(
+        "style-src 'self' 'unsafe-inline'",
+      )
     } finally {
       await app.close()
     }

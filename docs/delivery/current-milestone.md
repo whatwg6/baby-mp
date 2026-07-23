@@ -52,6 +52,7 @@ M6 已完成：
 - 所有宝宝域资源由服务端实时查询成员关系；不信任客户端角色或归属声明。
 - 完成删除宝宝、退出家庭、数据访问/更正/账号注销申请及受控状态流转；软删除、人工处理和物理删除证据在文案中严格区分。
 - 安全头、请求体上限、低敏规范路由日志、5xx 脱敏、内部 metrics token、单实例限流和生产环境启动校验已实现。
+- Swagger UI 使用仅限 `/api/docs` 的同源 CSP；普通 API 继续使用 `default-src 'none'`，staging/production 的内部 token 保护不变。
 - `fast-uri` 固定为已修复的 `3.1.4`，Webpack 升级并固定为 `5.104.1`；npm 官方源生产依赖审计为 0 个已知漏洞，Security workflow 对 low 及以上公告失败。
 - 微信 AppID 统一为 `wx433aecb90d44e9fe`；AppSecret 只允许由部署 secret store 注入。
 
@@ -73,7 +74,8 @@ M6 已完成：
 2026-07-23 对当前工作树实际执行：
 
 - `pnpm lint`、`pnpm typecheck`、API build：通过。
-- contracts：11 项；client：125 项；API：183 项；合计 **319 项全部通过**。
+- Swagger CSP 定向验证通过：8 项安全头/内部访问测试、API typecheck、API lint 通过；Chrome 实测 UI、样式和脚本正常加载。
+- contracts：11 项；client：125 项；API：184 项；合计 **320 项全部通过**。
 - `pnpm verify:traceability`：94/94 个 P0/P1 用例 covered（P0=44、P1=50、gap=0）。
 - runtime preflight：安全 staging/production 配置通过，mock auth、示例密钥、本地端点和不安全生产配置均被拒绝。
 - Prisma schema validate：通过；当前 M1–M7 共 **9 条**只前进 migration。9 条 migration 此前已在全新 PostgreSQL 连续应用通过，本轮未改变迁移内容。
