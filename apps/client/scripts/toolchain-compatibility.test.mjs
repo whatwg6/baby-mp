@@ -34,4 +34,17 @@ describe('Taro toolchain compatibility', () => {
       expect(clientPackage.scripts[name]).toContain(' --no-check')
     }
   })
+
+  it('patches the legacy URL normalizer without passing Node warning flags', async () => {
+    const workspacePackage = await readJson(join(workspaceRoot, 'package.json'))
+    const clientPackage = await readJson(join(clientRoot, 'package.json'))
+
+    expect(workspacePackage.pnpm?.patchedDependencies).toMatchObject({
+      'normalize-url@2.0.1': 'patches/normalize-url@2.0.1.patch',
+    })
+    for (const name of ['dev', 'dev:h5', 'dev:weapp']) {
+      expect(clientPackage.scripts[name]).not.toContain('NODE_OPTIONS')
+      expect(clientPackage.scripts[name]).not.toContain('--no-warnings')
+    }
+  })
 })

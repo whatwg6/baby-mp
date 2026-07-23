@@ -1,0 +1,20 @@
+diff --git a/index.js b/index.js
+index 6afd55c..332b311 100644
+--- a/index.js
++++ b/index.js
+@@ -1,6 +1,5 @@
+ 'use strict';
+ const url = require('url');
+-const punycode = require('punycode');
+ const queryString = require('query-string');
+ const prependHttp = require('prepend-http');
+ const sortKeys = require('sort-keys');
+@@ -93,7 +92,7 @@ module.exports = (str, opts) => {
+ 
+ 	if (urlObj.hostname) {
+ 		// IDN to Unicode
+-		urlObj.hostname = punycode.toUnicode(urlObj.hostname).toLowerCase();
++		urlObj.hostname = url.domainToUnicode(urlObj.hostname).toLowerCase();
+ 
+ 		// Remove trailing dot
+ 		urlObj.hostname = urlObj.hostname.replace(/\.$/, '');

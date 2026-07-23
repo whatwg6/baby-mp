@@ -56,6 +56,7 @@
 - 删除宝宝会在同一事务中把 active export 置失败并解除 `resultMediaId`；真实 M7 脚本现在要求实际 ZIP 在清理后无法通过原签名 URL 读取。
 - worker 长任务活性、连续失败 fail-closed、超时 watchdog、abort 停止心跳和多实例失败聚合均有定向测试。
 - manifest 的逐目标非空、稳定排序、实际微信产物 AppID、source map/符号链接、篡改、缺失、多出和 commit 失配均有定向测试。
+- H5 开发服务器已在本机真实监听并无警告编译成功：Taro CLI 的旧 URL 依赖已通过仓库补丁停止调用 Node 内置 `punycode`，不依赖 `NODE_OPTIONS`；Taro 组件冗余 `webpackExports` 提示按模块与消息过滤，Webpack 缓存键绑定 Node/lockfile 以杜绝旧 pnpm 物理路径恢复失败；客户端 typecheck 与 128 项测试通过。
 
 ### 既有环境证据与本轮待重跑项
 

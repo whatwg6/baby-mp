@@ -50,6 +50,9 @@
     "typescript-eslint": "8.37.0"
   },
   "pnpm": {
+    "patchedDependencies": {
+      "normalize-url@2.0.1": "patches/normalize-url@2.0.1.patch"
+    },
     "overrides": {
       "esbuild": "0.25.12",
       "fast-uri": "3.1.4",

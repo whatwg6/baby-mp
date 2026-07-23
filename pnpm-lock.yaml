@@ -13,6 +13,11 @@ overrides:
   webpack-dev-server: 5.2.6
   '@tarojs/webpack5-runner@4.1.5>webpack-dev-server': 4.15.2
 
+patchedDependencies:
+  normalize-url@2.0.1:
+    hash: beed0299e14d07e64f495f954a0412227692dd6edc8f09f2273f2546067d2264
+    path: patches/normalize-url@2.0.1.patch
+
 importers:
 
   .:
@@ -10707,7 +10712,7 @@ snapshots:
       http-cache-semantics: 3.8.1
       keyv: 3.0.0
       lowercase-keys: 1.0.0
-      normalize-url: 2.0.1
+      normalize-url: 2.0.1(patch_hash=beed0299e14d07e64f495f954a0412227692dd6edc8f09f2273f2546067d2264)
       responselike: 1.0.2
 
   cacheable-request@6.1.0:
@@ -13018,7 +13023,7 @@ snapshots:
 
   normalize-path@3.0.0: {}
 
-  normalize-url@2.0.1:
+  normalize-url@2.0.1(patch_hash=beed0299e14d07e64f495f954a0412227692dd6edc8f09f2273f2546067d2264):
     dependencies:
       prepend-http: 2.0.0
       query-string: 5.1.1

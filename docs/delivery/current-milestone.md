@@ -80,6 +80,7 @@ M6 已完成：
 - `pnpm openapi:generate`：无漂移；SHA-256 为
   `3ff2a484fa8204ad60fda43bb33c85ec8305bc652ddebff1633d0ef51997f440`。
 - shell/Node 语法、manifest 生成/复验篡改测试、Runtime Compose 合成结构校验、`git diff --check`：通过。
+- `pnpm run dev:client` 已在本机真实监听 `127.0.0.1:10086` 并无警告编译成功；开发缓存键现在绑定 Node 版本与 lockfile，避免 pnpm 依赖路径变化后反复恢复旧缓存；旧 URL 依赖已通过仓库补丁停止调用 Node 内置 `punycode`，未使用 `NODE_OPTIONS` 隐藏提示。客户端 typecheck 与 128 项测试通过。
 - 删除宝宝现在原子解除活动导出归档引用；M7 真实链路脚本会生成实际私有 ZIP，删除宝宝后执行清理并要求旧签名 URL 返回 404。
 - Playwright 的上一轮 Linux 证据为 9/9；本轮补强了多宝宝缓存隔离和真实归档/超时场景，调整后的 9 项仍需在 Linux/CI 重跑。
 - 上一轮本地包体预算通过（H5 raw 8,515,814；H5 JS gzip 2,265,940；最大 chunk 137,193；微信 631,930 bytes），

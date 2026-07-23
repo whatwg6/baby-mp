@@ -1,5 +1,6 @@
 import { defineConfig, type UserConfigExport } from '@tarojs/cli'
 import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { resolveClientApiBaseUrl } from './api-base-url'
 import { resolveClientOutputRoot } from './build-output'
@@ -24,7 +25,11 @@ const apiBaseUrl = resolveClientApiBaseUrl({
   taroEnv,
 })
 const cacheVariant = createHash('sha256')
-  .update(`${isE2eBuild ? 'e2e' : 'release'}\0${apiBaseUrl}`)
+  .update(`${isE2eBuild ? 'e2e' : 'release'}\0${apiBaseUrl}\0${process.versions.node}\0`)
+  // pnpm encodes peer dependency versions into physical module paths.
+  // Including the lockfile prevents Webpack from deserializing paths from a
+  // previous dependency graph after an install or toolchain update.
+  .update(readFileSync(resolve(__dirname, '../../../pnpm-lock.yaml')))
   .digest('hex')
   .slice(0, 12)
 const environmentConfig = isDevelopment ? devConfig : prodConfig
