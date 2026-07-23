@@ -18,6 +18,9 @@ env:
 
 jobs:
   verify:
+    # Fresh-install workspace verification is temporarily manual. The H5 E2E
+    # job remains automatic and covers the local application startup path.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
