@@ -5,6 +5,9 @@ on:
   push:
     branches:
       - main
+  # Keep release and operations checks available without running them on
+  # every change during the local-development phase.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -57,6 +60,7 @@ jobs:
         run: pnpm verify
 
       - name: Verify release artifact budgets and security boundaries
+        if: github.event_name == 'workflow_dispatch'
         env:
           CI: 'true'
           ALLOW_TEST_RELEASE_API_ORIGIN: 'true'
@@ -64,12 +68,15 @@ jobs:
         run: pnpm verify:artifacts
 
       - name: Verify runtime configuration preflight
+        if: github.event_name == 'workflow_dispatch'
         run: scripts/verify-runtime-preflight.sh
 
       - name: Require complete P0/P1 automation traceability
+        if: github.event_name == 'workflow_dispatch'
         run: node scripts/verify-test-traceability.mjs --require-covered
 
       - name: Detect OpenAPI drift
+        if: github.event_name == 'workflow_dispatch'
         env:
           APP_ENV: test
           DATABASE_URL: postgresql://baby_mp:baby_mp@127.0.0.1:5432/baby_mp_test?schema=public
@@ -83,6 +90,7 @@ jobs:
           git diff --exit-code -- apps/api/openapi/openapi.json
 
       - name: Generate and verify production-mode client evidence manifest
+        if: github.event_name == 'workflow_dispatch'
         env:
           CI: 'true'
           ALLOW_TEST_RELEASE_API_ORIGIN: 'true'
@@ -95,6 +103,7 @@ jobs:
           pnpm release:manifest:verify
 
       - name: Upload verified production-mode client evidence
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: baby-mp-client-production-mode-evidence-${{ github.sha }}
@@ -107,6 +116,9 @@ jobs:
           compression-level: 9
 
   integration:
+    # The full API/worker and backup/restore rehearsal is retained for manual
+    # release-readiness runs. Automatic CI focuses on local app verification.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     services:
@@ -366,6 +378,9 @@ jobs:
         run: docker stop baby-mp-e2e-minio >/dev/null 2>&1 || true
 
   runtime-image:
+    # Production image and runtime-compose checks are release concerns and are
+    # intentionally manual during the local-development phase.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:

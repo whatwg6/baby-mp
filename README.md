@@ -112,7 +112,7 @@ pnpm verify
 pnpm verify:m2:api  # 需先启动本地 API
 ```
 
-根 `build` 同时构建共享契约、NestJS API、Taro H5 和微信小程序产物。CI 在全新安装后执行同一个 `pnpm verify`。
+根 `build` 同时构建共享契约、NestJS API、Taro H5 和微信小程序产物。自动 CI 在全新安装后执行同一个 `pnpm verify`，并保留 H5 E2E、依赖审计和密钥扫描；真实集成/备份演练、运行镜像及发布证据检查暂时改为手动触发，待恢复上线准备时重新启用。
 
 单独构建客户端目标：
 
