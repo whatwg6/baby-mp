@@ -7,7 +7,12 @@ import { ExportsModule } from './exports.module'
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ cache: true, isGlobal: true, validate: validateEnvironment }),
+    ConfigModule.forRoot({
+      cache: true,
+      envFilePath: ['.env', '../../.env'],
+      isGlobal: true,
+      validate: validateEnvironment,
+    }),
     DatabaseModule,
     ExportsModule,
   ],

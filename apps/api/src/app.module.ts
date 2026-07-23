@@ -22,6 +22,7 @@ import { UsersModule } from './users/users.module'
   imports: [
     ConfigModule.forRoot({
       cache: true,
+      envFilePath: ['.env', '../../.env'],
       isGlobal: true,
       validate: validateEnvironment,
     }),
