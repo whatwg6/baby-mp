@@ -5,10 +5,13 @@ vi.mock('@tarojs/taro', () => ({
   default: { request: vi.fn() },
 }))
 
-import { createApiClient, getApiBaseUrl, type RequestTransport } from './api-client'
+import { afterEach } from 'vitest'
+
+import { configureApiAuth, createApiClient, getApiBaseUrl, type RequestTransport } from './api-client'
 import { ApiClientError } from './api-error'
 
 describe('API client', () => {
+  afterEach(() => configureApiAuth(undefined))
   it('builds the request and validates a health response', async () => {
     const transport = vi.fn<RequestTransport>().mockResolvedValue({
       statusCode: 200,
@@ -77,5 +80,78 @@ describe('API client', () => {
     expect(() =>
       getApiBaseUrl('  ', { nodeEnv: 'development', taroEnv: 'h5' }),
     ).toThrow('客户端 API 地址未配置')
+  })
+
+  it('refreshes once after a 401 and retries with the rotated access token', async () => {
+    const transport = vi.fn<RequestTransport>()
+      .mockResolvedValueOnce({ statusCode: 401, data: { error: { code: 'AUTH_REQUIRED', message: 'expired' } } })
+      .mockResolvedValueOnce({ statusCode: 200, data: { data: { status: 'ok', version: '0.1.0' } } })
+    const refresh = vi.fn().mockResolvedValue('new-token')
+    configureApiAuth({ getAccessToken: () => 'old-token', refresh, onAuthFailure: vi.fn() })
+
+    await createApiClient('http://localhost:3000', transport).request({
+      path: '/api/v1/health', schema: healthResponseSchema,
+    })
+
+    expect(refresh).toHaveBeenCalledTimes(1)
+    expect(transport).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      header: expect.objectContaining({ Authorization: 'Bearer new-token' }),
+    }))
+  })
+
+  it('retries transient GET failures within the configured bound', async () => {
+    const transport = vi.fn<RequestTransport>()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({ statusCode: 503, data: {} })
+      .mockResolvedValueOnce({
+        statusCode: 200,
+        data: { data: { status: 'ok', version: '0.1.0' } },
+      })
+    const client = createApiClient('http://localhost:3000', transport, {
+      getRetryDelaysMs: [0, 0],
+    })
+
+    await expect(client.request({
+      path: '/api/v1/health',
+      schema: healthResponseSchema,
+    })).resolves.toMatchObject({ data: { status: 'ok' } })
+    expect(transport).toHaveBeenCalledTimes(3)
+  })
+
+  it('never automatically retries a write request', async () => {
+    const transport = vi.fn<RequestTransport>().mockRejectedValue(new Error('offline'))
+    const client = createApiClient('http://localhost:3000', transport, {
+      getRetryDelaysMs: [0, 0],
+    })
+
+    await expect(client.request({
+      path: '/api/v1/health',
+      method: 'POST',
+      schema: healthResponseSchema,
+    })).rejects.toMatchObject({ message: '无法连接服务，请检查网络后重试' })
+    expect(transport).toHaveBeenCalledTimes(1)
+  })
+
+  it('cancels an active request through AbortSignal without retrying it', async () => {
+    const transport = vi.fn<RequestTransport>().mockImplementation(({ signal }) =>
+      new Promise((_resolve, reject) => {
+        signal?.addEventListener('abort', () => {
+          const error = new Error('aborted')
+          error.name = 'AbortError'
+          reject(error)
+        }, { once: true })
+      }))
+    const controller = new AbortController()
+    const request = createApiClient('http://localhost:3000', transport, {
+      getRetryDelaysMs: [0, 0],
+    }).request({
+      path: '/api/v1/health',
+      schema: healthResponseSchema,
+      signal: controller.signal,
+    })
+
+    controller.abort()
+    await expect(request).rejects.toMatchObject({ message: '请求已取消' })
+    expect(transport).toHaveBeenCalledTimes(1)
   })
 })

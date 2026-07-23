@@ -1,0 +1,30 @@
+@use '../../styles/tokens.scss' as *;
+
+.baby-switcher__overlay {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  background: $color-overlay;
+}
+
+.baby-switcher {
+  width: 100%;
+  max-height: 70vh;
+  padding: $space-lg $space-md calc($space-lg + env(safe-area-inset-bottom));
+  overflow-y: auto;
+  border-radius: $radius-md $radius-md 0 0;
+  background: $color-surface;
+}
+
+.baby-switcher__title { display: block; margin-bottom: $space-md; font-size: $font-lg; font-weight: 700; }
+.baby-switcher__item { display: flex; align-items: center; padding: $space-md; border-bottom: 1px solid $color-border; }
+.baby-switcher__item.is-current { color: $color-primary; }
+.baby-switcher__avatar { display: flex; flex: none; align-items: center; justify-content: center; width: 44px; height: 44px; margin-right: $space-md; border-radius: 50%; }
+.baby-switcher__avatar--fallback { background: $color-primary-soft; color: $color-primary; font-weight: 700; }
+.baby-switcher__body { flex: 1; }
+.baby-switcher__name, .baby-switcher__role { display: block; }
+.baby-switcher__name { font-weight: 700; }
+.baby-switcher__role { margin-top: $space-xs; color: $color-text-secondary; font-size: $font-sm; }
+.baby-switcher__check { flex: none; }

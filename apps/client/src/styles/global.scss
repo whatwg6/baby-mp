@@ -42,3 +42,12 @@ button::after {
   border-radius: $radius-md;
   background: $color-surface;
 }
+
+.primary-button, .secondary-button { min-height: 48px; border-radius: $radius-sm; font-size: $font-md; }
+.primary-button { background: $color-primary; color: white; }
+.secondary-button { border: 1px solid $color-primary; background: $color-surface; color: $color-primary; }
+.danger-link { margin-top: $space-lg; background: transparent; color: $color-danger; }
+.list-card { display: flex; align-items: center; justify-content: space-between; margin-bottom: $space-md; }
+.list-card__title, .list-card__meta { display: block; }.list-card__title { font-weight: 700; }.list-card__meta { margin-top: $space-xs; color: $color-text-secondary; font-size: $font-sm; }
+.settings-list { margin: $space-lg 0; overflow: hidden; border: 1px solid $color-border; border-radius: $radius-md; background: $color-surface; }
+.settings-item { display: flex; justify-content: space-between; padding: $space-md; border-bottom: 1px solid $color-border; }.settings-item:last-child { border-bottom: 0; }

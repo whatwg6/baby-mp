@@ -1,0 +1,12 @@
+@use '../../styles/tokens.scss' as *;
+
+.export-card { display: flex; align-items: center; gap: $space-md; margin-bottom: $space-md; padding: $space-md; border: 1px solid $color-border; border-radius: $radius-md; background: $color-surface; }
+.export-card__body { min-width: 0; flex: 1; }
+.export-card__heading { display: flex; align-items: center; justify-content: space-between; gap: $space-sm; }
+.export-card__title { font-weight: 700; }
+.export-card__status { padding: 3px 8px; border-radius: $radius-round; background: $color-primary-soft; color: $color-primary; font-size: 12px; }
+.export-card__status--completed { background: rgba(52,120,90,.12); color: $color-success; }
+.export-card__status--failed, .export-card__status--expired { color: $color-danger; }
+.export-card__meta, .export-card__expiry { display: block; margin-top: $space-xs; color: $color-text-secondary; font-size: 12px; }
+.export-card__expiry { color: $color-success; }
+.export-card__arrow { color: $color-text-secondary; font-size: 24px; }

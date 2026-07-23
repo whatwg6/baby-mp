@@ -1,0 +1,129 @@
+@use '../../styles/tokens.scss' as *;
+
+.legal-document {
+  max-width: 760px;
+  margin: 0 auto;
+  font-size: $font-md;
+}
+
+.legal-document__hero {
+  padding: $space-sm 0 $space-lg;
+}
+
+.legal-document__eyebrow,
+.legal-document__title,
+.legal-document__summary,
+.legal-document__meta text,
+.legal-section__title,
+.legal-section__paragraph,
+.legal-section__note,
+.legal-document__notice text,
+.legal-document__closing text {
+  display: block;
+}
+
+.legal-document__eyebrow {
+  color: $color-primary;
+  font-size: $font-sm;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
+.legal-document__title {
+  margin-top: $space-sm;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.legal-document__summary {
+  margin-top: $space-md;
+  color: $color-text-secondary;
+  font-size: 17px;
+  line-height: 1.8;
+}
+
+.legal-document__meta {
+  margin-top: $space-md;
+  color: $color-text-secondary;
+  font-size: $font-sm;
+  line-height: 1.7;
+}
+
+.legal-document__notice,
+.legal-document__closing {
+  padding: $space-md;
+  border: 1px solid $color-border;
+  border-radius: $radius-sm;
+  background: $color-primary-soft;
+  line-height: 1.75;
+}
+
+.legal-document__notice-title {
+  margin-bottom: $space-xs;
+  color: $color-primary;
+  font-weight: 700;
+}
+
+.legal-document__sections {
+  margin-top: $space-lg;
+}
+
+.legal-section {
+  margin-bottom: $space-md;
+  padding: $space-lg;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: $color-surface;
+}
+
+.legal-section__title {
+  margin-bottom: $space-md;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.legal-section__paragraph {
+  margin-top: $space-sm;
+  font-size: $font-md;
+  line-height: 1.85;
+}
+
+.legal-section__item {
+  display: flex;
+  align-items: flex-start;
+  gap: $space-sm;
+  margin-top: $space-sm;
+  font-size: $font-md;
+  line-height: 1.85;
+}
+
+.legal-section__bullet {
+  flex: 0 0 18px;
+  color: $color-primary;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.48;
+  text-align: center;
+}
+
+.legal-section__item-text {
+  flex: 1;
+}
+
+.legal-section__note {
+  margin-top: $space-md;
+  padding: $space-md;
+  border-radius: $radius-sm;
+  background: $color-background;
+  color: $color-text-secondary;
+  font-size: $font-md;
+  line-height: 1.8;
+}
+
+.legal-document__closing {
+  margin-top: $space-lg;
+  color: $color-text-secondary;
+  font-size: $font-md;
+}

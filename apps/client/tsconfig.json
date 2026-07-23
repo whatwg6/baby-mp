@@ -3,6 +3,10 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
+    "paths": {
+      "@mock-login-boundary": ["src/features/auth/mock-login.disabled.tsx"]
+    },
     "types": ["@tarojs/taro", "vitest/globals"]
   },
   "include": ["src", "config"]

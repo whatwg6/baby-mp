@@ -1,6 +1,7 @@
 import {
   CallHandler,
   ExecutionContext,
+  HttpException,
   Inject,
   Injectable,
   Logger,
@@ -9,10 +10,12 @@ import {
 import { ConfigService } from '@nestjs/config'
 import type { Response } from 'express'
 import { Observable } from 'rxjs'
-import { finalize } from 'rxjs/operators'
+import { tap } from 'rxjs/operators'
 
 import type { Environment } from '../../config/environment'
+import { OperationalMetricsService } from '../observability/operational-metrics.service'
 import { requestIdFrom, type RequestWithContext } from './request-context'
+import { routeTemplateFrom } from './route-template'
 
 @Injectable()
 export class RequestLoggingInterceptor implements NestInterceptor {
@@ -21,6 +24,8 @@ export class RequestLoggingInterceptor implements NestInterceptor {
   constructor(
     @Inject(ConfigService)
     private readonly config: ConfigService<Environment, true>,
+    @Inject(OperationalMetricsService)
+    private readonly metrics: OperationalMetricsService,
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
@@ -29,21 +34,31 @@ export class RequestLoggingInterceptor implements NestInterceptor {
     const request = http.getRequest<RequestWithContext>()
     const response = http.getResponse<Response>()
 
+    const logCompletion = (statusCode: number) => {
+      const durationMs =
+        Math.round((performance.now() - startedAt) * 100) / 100
+      const route = routeTemplateFrom(request)
+      this.metrics.recordRequest(request.method, route, statusCode, durationMs)
+      this.logger.log(
+        JSON.stringify({
+          level: 'info',
+          message: 'request_completed',
+          environment: this.config.get('APP_ENV', { infer: true }),
+          module: context.getClass().name,
+          requestId: requestIdFrom(request),
+          method: request.method,
+          route,
+          statusCode,
+          durationMs,
+        }),
+      )
+    }
+
     return next.handle().pipe(
-      finalize(() => {
-        this.logger.log(
-          JSON.stringify({
-            level: 'info',
-            message: 'request_completed',
-            environment: this.config.get('APP_ENV', { infer: true }),
-            module: context.getClass().name,
-            requestId: requestIdFrom(request),
-            method: request.method,
-            path: request.path,
-            statusCode: response.statusCode,
-            durationMs: Math.round((performance.now() - startedAt) * 100) / 100,
-          }),
-        )
+      tap({
+        complete: () => logCompletion(response.statusCode),
+        error: (error: unknown) =>
+          logCompletion(error instanceof HttpException ? error.getStatus() : 500),
       }),
     )
   }

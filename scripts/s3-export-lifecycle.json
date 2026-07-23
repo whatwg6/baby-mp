@@ -1,0 +1,20 @@
+{
+  "Rules": [
+    {
+      "ID": "expire-private-export-archives",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": "exports/"
+      },
+      "Expiration": {
+        "Days": 7
+      },
+      "NoncurrentVersionExpiration": {
+        "NoncurrentDays": 1
+      },
+      "AbortIncompleteMultipartUpload": {
+        "DaysAfterInitiation": 1
+      }
+    }
+  ]
+}

@@ -1,18 +1,40 @@
 import { defineConfig, type UserConfigExport } from '@tarojs/cli'
-
+import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { resolveClientApiBaseUrl } from './api-base-url'
+import { resolveClientOutputRoot } from './build-output'
 import devConfig from './dev'
 import prodConfig from './prod'
 
 const taroEnv = process.env.TARO_ENV ?? 'h5'
-const outputRoot = `dist/${taroEnv}`
+const isDevelopment = process.env.NODE_ENV === 'development'
+const isE2eBuild = process.env.TARO_APP_E2E === 'true'
+const mockLoginEnabled = isDevelopment || isE2eBuild
+// Keep the optimized test build physically separate from release artifacts.
+// Both variants are production-mode H5 bundles with different compile-time
+// authentication and API-origin boundaries; sharing dist/h5 makes a local E2E
+// run silently replace the last release candidate.
+const outputRoot = resolveClientOutputRoot(taroEnv, isE2eBuild)
 const apiBaseUrl = resolveClientApiBaseUrl({
   explicitValue: process.env.TARO_APP_API_BASE_URL,
-  nodeEnv: process.env.NODE_ENV,
+  // E2E is an optimized static build, but it deliberately targets the local
+  // HTTP test API. Release builds never set TARO_APP_E2E and retain the HTTPS
+  // production gate below.
+  nodeEnv: isE2eBuild ? 'test' : process.env.NODE_ENV,
   taroEnv,
 })
+const cacheVariant = createHash('sha256')
+  .update(`${isE2eBuild ? 'e2e' : 'release'}\0${apiBaseUrl}\0${process.versions.node}\0`)
+  // pnpm encodes peer dependency versions into physical module paths.
+  // Including the lockfile prevents Webpack from deserializing paths from a
+  // previous dependency graph after an install or toolchain update.
+  .update(readFileSync(resolve(__dirname, '../../../pnpm-lock.yaml')))
+  .digest('hex')
+  .slice(0, 12)
+const environmentConfig = isDevelopment ? devConfig : prodConfig
 
-const baseConfig: UserConfigExport = {
+const baseConfig = {
   projectName: 'baby-mp-client',
   date: '2026-07-16',
   designWidth: 375,
@@ -25,8 +47,15 @@ const baseConfig: UserConfigExport = {
   sourceRoot: 'src',
   outputRoot,
   framework: 'react',
+  alias: {
+    '@mock-login-boundary': resolve(
+      __dirname,
+      `../src/features/auth/mock-login.${mockLoginEnabled ? 'enabled' : 'disabled'}.tsx`,
+    ),
+  },
   env: {
     TARO_APP_API_BASE_URL: JSON.stringify(apiBaseUrl),
+    TARO_APP_E2E: JSON.stringify(isE2eBuild ? 'true' : 'false'),
   },
   compiler: {
     type: 'webpack5',
@@ -39,17 +68,30 @@ const baseConfig: UserConfigExport = {
   },
   cache: {
     enable: true,
+    // E2E is also an optimized production-mode H5 build. Include every
+    // compile-time security boundary in the filesystem cache key so its mock
+    // login and local API constants can never leak into release artifacts.
+    name: `${process.env.NODE_ENV}-${taroEnv}-${cacheVariant}`,
   },
   copy: {
     patterns:
       taroEnv === 'weapp'
         ? [
             {
-              from: 'config/weapp-project.config.json',
+              from: isDevelopment
+                ? 'config/weapp-project.dev.config.json'
+                : 'config/weapp-project.prod.config.json',
               to: `${outputRoot}/project.config.json`,
             },
           ]
-        : [],
+        : taroEnv === 'h5'
+          ? [
+              {
+                from: 'config/favicon.svg',
+                to: `${outputRoot}/favicon.svg`,
+              },
+            ]
+          : [],
     options: {},
   },
   mini: {
@@ -87,9 +129,20 @@ const baseConfig: UserConfigExport = {
       },
     },
   },
-}
+} satisfies UserConfigExport<'webpack5'>
 
 export default defineConfig<'webpack5'>(() => ({
   ...baseConfig,
-  ...(process.env.NODE_ENV === 'development' ? devConfig : prodConfig),
+  ...environmentConfig,
+  // Taro configuration is a plain object at this point. Preserve the shared
+  // platform settings when an environment adds a small override such as the
+  // dev-server host or production source-map policy.
+  mini: {
+    ...baseConfig.mini,
+    ...environmentConfig.mini,
+  },
+  h5: {
+    ...baseConfig.h5,
+    ...environmentConfig.h5,
+  },
 }))

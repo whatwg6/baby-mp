@@ -1,138 +1,57 @@
-# Baby MP Agent Instructions
+# Baby MP Repository Guidance
 
-## Working model
+## Repository map
 
-The user is the product owner, not the task dispatcher. When asked to develop or continue the project, act as the lead development agent:
+- This is a pnpm monorepo using Node.js 22 and pnpm 10.
+- `apps/api` contains the NestJS API, Prisma schema and migrations, workers, and API tests.
+- `apps/client` contains the Taro 4 React client for WeChat Mini Program and H5.
+- `packages/contracts` contains shared transport contracts. Do not expose Prisma types to the client.
+- `docs/README.md` indexes the product, architecture, quality, delivery, and operations documents.
+- `scripts` contains repository verification, integration, release, and operations tooling.
 
-1. Read the project documentation required below.
-2. Inspect the current implementation and working tree before changing files.
-3. Create a concrete implementation plan for the active milestone.
-4. Delegate bounded, non-overlapping work to sub-agents when parallelism is useful.
-5. Integrate all changes, resolve conflicts, and run the required verification yourself.
-6. Update project status documents before reporting completion.
+## Understanding the repository
 
-Do not ask the user to assign individual modules or tell other agents which documents to read. Only ask the user when a genuine product decision is required and no safe documented default exists.
+Before editing, inspect the working tree and read the nearest implementation and tests. Read only the documents relevant to the requested change:
 
-## Conversational project control
+- Product scope and business rules: `docs/product/product-requirements.md`.
+- Page structure and behavior: `docs/product/information-architecture.md` and `docs/product/ui-specification.md`.
+- HTTP behavior: `docs/architecture/api-specification.md`.
+- Persistence rules: `docs/architecture/data-model.md`.
+- Engineering boundaries: `docs/architecture/technical-architecture.md` and accepted ADRs.
+- Verification coverage: `docs/quality/test-plan.md`.
+- Delivery state and milestone acceptance: `docs/delivery/current-milestone.md` and `docs/delivery/implementation-status.md`.
 
-The user controls the project through natural conversation. Do not require them to mention document names, milestone IDs, agent roles, file ownership, test commands, or delegation strategy.
+When documents conflict, prefer product requirements for product behavior, API specification for HTTP behavior, data model for persistence, and accepted ADRs for engineering boundaries. Do not treat delivery-state documents as requirements for an unrelated code change.
 
-Interpret common requests as follows:
+## Product and architecture boundaries
 
-### Status requests
-
-Examples:
-
-- “项目现在的状态”
-- “现在做到哪了”
-- “接下来干什么”
-- “给我看看进度”
-
-For a status request:
-
-1. Perform read-only inspection of the actual repository, `docs/implementation-status.md`, and `docs/current-milestone.md`.
-2. Do not trust status documents blindly; compare them with files, migrations, tests, and available verification evidence.
-3. Report what is complete, what is currently active, known blockers or risks, and one concrete recommended next step.
-4. Do not modify code, create tasks, or start implementation from a status request alone.
-5. Do not tell the user which agents to create or which documents to send them.
-
-### Approval to proceed
-
-Examples:
-
-- “你去做吧”
-- “开始吧”
-- “按你说的做”
-- “继续”
-- “往下做”
-
-Treat these as authorization to execute the most recently recommended next step. The user does not need to restate its scope.
-
-When authorized:
-
-1. Act as the Lead Agent.
-2. Resolve the current scope from the previous recommendation and project status documents.
-3. Plan the work, delegate safe parallel tasks, integrate changes, and verify the result.
-4. Update `docs/implementation-status.md` and `docs/current-milestone.md`.
-5. Report the outcome and recommend the next step.
-
-If there is no earlier recommendation in the conversation:
-
-- Resume an `In Progress` milestone.
-- Otherwise execute the `Ready` milestone.
-- If the current milestone is `Complete`, identify and prepare the next milestone from `docs/development-plan.md`, then execute it when “继续” or equivalent clearly authorizes moving forward.
-
-Do not respond to “你去做吧” with another planning burden for the user. Ask a question only if a documented `待确认` item materially changes the result and no safe default exists.
-
-### Pause or inspection only
-
-Examples:
-
-- “先别做”
-- “只看看”
-- “先分析一下”
-
-Keep the work read-only unless the user later authorizes implementation.
-
-## Mandatory entry point
-
-Before implementation, read these files in order:
-
-1. `docs/current-milestone.md`
-2. `docs/implementation-status.md`
-3. `docs/developer-handoff.md`
-4. `docs/agent-workstreams.md`
-
-Then read the task-specific documents listed in `docs/developer-handoff.md` and `docs/agent-workstreams.md`.
-
-## Source of truth
-
-When documents differ, use this priority:
-
-1. `docs/current-milestone.md` for active scope and acceptance criteria.
-2. `docs/product-requirements.md` for product scope and business rules.
-3. `docs/information-architecture.md` and `docs/ui-specification.md` for user flows and UI behavior.
-4. `docs/api-specification.md` for HTTP behavior.
-5. `docs/data-model.md` for persistence rules.
-6. `docs/technical-architecture.md` and accepted ADRs for engineering boundaries.
-7. `docs/test-plan.md` for verification coverage.
-
-If a conflict remains, stop only the affected subtask, document the conflict, and continue any independent work that is safe.
-
-## Scope control
-
-- Implement only the active milestone unless the user's request explicitly covers more.
-- Do not add PRD-excluded features such as community, medical diagnosis, AI summaries, feeding, sleep, diaper, vaccine, or video features.
-- Cloud provider selection does not block local development.
-- Local development uses PostgreSQL, MinIO, and mock authentication as documented.
+- Keep changes within the requested scope. Do not add community, medical diagnosis, AI summaries, feeding, sleep, diaper, vaccine, or video features.
+- Local development uses PostgreSQL, MinIO, and mock authentication. Cloud provider selection does not block local work.
 - Never enable mock authentication in staging or production.
+- Keep platform-specific APIs behind the platform adapter; client business code must not call `wx.*` directly.
+- Keep server state and client caches scoped by `babyId`; isolate in-flight requests when the active baby changes.
 
-## Parallel work
+## Security and data integrity
 
-- Follow `docs/agent-workstreams.md` for dependency order and recommended workstreams.
-- The lead agent owns the plan, delegation, integration, and final verification.
-- Assign a single owner for root configuration, lockfiles, Prisma schema/migration order, shared contract exports, global client routing, and Docker configuration.
-- Do not delegate overlapping edits to the same shared files.
-- Sub-agent completion is not milestone completion; the lead agent must review and verify the integrated result.
+- Authorize every baby resource on the server from the authenticated user and current membership. Never trust a client-provided role or ownership claim.
+- Resolve a resource's `babyId` on the server before authorizing detail or mutation requests.
+- Keep object storage private and expose only short-lived signed access.
+- Use transactions, idempotency, optimistic versions, and soft deletion where required by the product and architecture documents.
+- Never log secrets, tokens, platform codes or session keys, raw invite tokens, baby names or content, or signed URLs.
+- Use stable API error codes; do not expose database error text to clients.
 
-## Required engineering constraints
+## Change consistency
 
-- Enforce baby-resource authorization on the server for every request.
-- Never trust a client-provided role or baby ownership claim.
-- Keep object storage private and use short-lived signed access.
-- Keep platform-specific APIs behind the platform adapter.
-- Use transactions, idempotency, optimistic versions, and soft deletion where required by the docs.
-- Never log secrets, tokens, platform codes/session keys, raw invite tokens, baby names/content, or signed URLs.
-- Preserve unrelated user changes and avoid destructive git commands.
+- Add forward-only migrations for data-model changes; never rewrite applied migration history.
+- Keep API implementation, generated OpenAPI, shared contracts, runtime validation, and client calls consistent.
+- Update product or architecture documents when their facts, contracts, or decisions change.
+- Treat delivery documents as factual records. Update them only when the represented delivery state, evidence, limitation, or milestone readiness actually changes.
+- Preserve unrelated user changes and avoid destructive Git commands.
 
-## Verification and completion
+## Verification
 
-Before marking a milestone complete:
-
-1. Run the milestone commands in `docs/current-milestone.md`.
-2. Verify its acceptance checklist with evidence.
-3. Update `docs/implementation-status.md` with completed work, verification, known limitations, and next milestone readiness.
-4. Change the active milestone status to `complete` in `docs/current-milestone.md`.
-5. Do not silently advance to the next milestone unless the user's request authorizes continued development.
-
-When reporting to the user, lead with the achieved outcome, verification results, remaining risks, and the next milestone. Do not make the user reconstruct status from sub-agent messages.
+- Start with the narrowest relevant lint, typecheck, and tests for the changed area.
+- Run broader verification when a change crosses packages, contracts, migrations, build configuration, security boundaries, or release behavior.
+- Common root commands are `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `pnpm verify`.
+- Use the milestone-specific and release verification commands documented in `package.json` and the relevant operations documents when those surfaces change.
+- Report exactly which checks ran and distinguish new evidence from earlier evidence.

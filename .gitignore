@@ -9,8 +9,10 @@ coverage/
 *.log
 .DS_Store
 .playwright-cli/
+e2e/output/
 apps/client/.temp/
 apps/client/.cache/
 apps/client/.swc/
 apps/client/dist/
 apps/api/openapi/openapi.generated.json
+/backups/

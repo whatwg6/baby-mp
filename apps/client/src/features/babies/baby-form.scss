@@ -1,0 +1,18 @@
+@use '../../styles/tokens.scss' as *;
+
+.baby-form { display: flex; flex-direction: column; gap: $space-md; }
+.baby-form__avatar-field { display: flex; flex-direction: column; align-items: center; }
+.baby-form__avatar { display: flex; align-items: center; justify-content: center; width: 76px; height: 76px; border-radius: 50%; }
+.baby-form__avatar--fallback { background: $color-primary-soft; color: $color-primary; font-size: 28px; font-weight: 700; }
+.baby-form__avatar-action { align-self: center; text-align: center; }
+.baby-form__avatar-status { color: $color-text-secondary; font-size: $font-sm; }
+.form-field { flex: 1; }
+.form-field__label { display: block; margin-bottom: $space-sm; color: $color-text-secondary; font-size: $font-sm; }
+.form-field input, .picker-value { box-sizing: border-box; width: 100%; min-height: 48px; padding: 13px $space-md; border: 1px solid $color-border; border-radius: $radius-sm; background: $color-surface; }
+.picker-value.is-placeholder { color: #999; }
+.form-field__error, .form-submit-error { display: block; margin-top: $space-xs; color: $color-danger; font-size: $font-sm; }
+.form-row { display: flex; gap: $space-md; }
+.gender-options { display: flex; gap: $space-sm; }
+.gender-options button { flex: 1; margin: 0; border: 1px solid $color-border; background: $color-surface; color: $color-text-secondary; font-size: $font-sm; }
+.gender-options button.is-selected { border-color: $color-primary; background: $color-primary-soft; color: $color-primary; }
+.link-button { margin: $space-xs 0 0; padding: 0; background: transparent; color: $color-primary; font-size: $font-sm; line-height: 2; text-align: left; }

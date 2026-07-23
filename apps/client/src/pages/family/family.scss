@@ -1,0 +1,21 @@
+@use '../../styles/tokens.scss' as *;
+
+.family-primary { margin-bottom: $space-lg; }
+.family-member { display: flex; flex-wrap: wrap; align-items: center; gap: $space-md; margin-bottom: $space-md; }
+.family-member__body { flex: 1; min-width: 0; }
+.family-avatar, .family-invite-heading__avatar { display: flex; flex: none; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%; }
+.family-avatar--fallback { background: $color-primary-soft; color: $color-primary; font-weight: 700; }
+.family-invite-heading { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.family-invite-heading__avatar { width: 72px; height: 72px; margin-bottom: $space-md; }
+.family-actions { display: flex; flex-wrap: wrap; flex: 1 0 100%; gap: $space-sm; margin-top: $space-md; }
+.family-actions button { margin: 0; }
+.family-danger { color: $color-danger; }
+.family-section { margin-top: $space-xl; }
+.family-leave { margin-top: $space-xl; text-align: center; }
+.family-leave__hint { display: block; margin-top: $space-sm; color: $color-text-secondary; font-size: 13px; line-height: 1.5; }
+.family-section__title, .family-label { display: block; margin-bottom: $space-md; font-weight: 700; }
+.family-form, .family-invite-preview { margin-bottom: $space-lg; }
+.family-choice { display: flex; align-items: flex-start; gap: $space-sm; margin-bottom: $space-lg; }
+.family-result { text-align: center; }
+.family-result__mark { display: block; margin-bottom: $space-md; color: $color-success; font-size: 40px; }
+.family-result .primary-button, .family-result .secondary-button, .family-invite-preview + .primary-button, .family-invite-preview + .primary-button + .secondary-button { margin-top: $space-md; }

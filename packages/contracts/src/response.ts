@@ -9,15 +9,31 @@ export const successResponseSchema = <T extends z.ZodTypeAny>(data: T) =>
     data,
   })
 
-export const apiErrorCodeSchema = z.enum([
+export const API_ERROR_CODES = [
   'AUTH_REQUIRED',
+  'REFRESH_TOKEN_INVALID',
   'FORBIDDEN',
   'RESOURCE_NOT_FOUND',
   'VALIDATION_FAILED',
   'VERSION_CONFLICT',
   'IDEMPOTENCY_CONFLICT',
+  'CONFLICT',
+  'LAST_ADMIN_REQUIRED',
+  'INVITE_INVALID',
+  'INVITE_EXPIRED',
+  'INVITE_REVOKED',
+  'INVITE_ALREADY_USED',
+  'ALREADY_A_MEMBER',
+  'EXPORT_NOT_READY',
+  'EXPORT_EXPIRED',
+  'RATE_LIMITED',
+  'UPLOAD_INCOMPLETE',
+  'UPLOAD_TOO_LARGE',
+  'UNSUPPORTED_MEDIA_TYPE',
   'INTERNAL_ERROR',
-])
+] as const
+
+export const apiErrorCodeSchema = z.enum(API_ERROR_CODES)
 
 export const apiErrorDetailSchema = z.object({
   field: z.string().optional(),

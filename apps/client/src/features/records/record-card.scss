@@ -1,0 +1,12 @@
+@use '../../styles/tokens.scss' as *;
+
+.record-card { display: flex; gap: $space-md; margin-bottom: $space-md; padding: $space-md; border: 1px solid $color-border; border-radius: $radius-md; background: $color-surface; }
+.record-card__body { min-width: 0; flex: 1; }
+.record-card__heading { display: flex; align-items: center; gap: $space-sm; }
+.record-card__type { padding: 3px 8px; border-radius: $radius-round; background: $color-primary-soft; color: $color-primary; font-size: 12px; }
+.record-card__type--measurement { color: $color-success; }
+.record-card__type--milestone { color: #7a5a9d; }
+.record-card__time, .record-card__author { color: $color-text-secondary; font-size: 12px; }
+.record-card__summary { display: -webkit-box; margin-top: $space-sm; overflow: hidden; font-weight: 600; line-height: 1.5; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.record-card__author { display: block; margin-top: $space-sm; }
+.record-card__cover { width: 88px; height: 88px; flex: 0 0 auto; border-radius: $radius-sm; }

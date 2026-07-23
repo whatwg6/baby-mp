@@ -1,0 +1,15 @@
+@use '../../styles/tokens.scss' as *;
+.auth-page { min-height: 100vh; box-sizing: border-box; padding: 72px $space-lg $space-xl; }
+.auth-brand { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.auth-brand__mark { display: flex; align-items: center; justify-content: center; width: 88px; height: 88px; border-radius: 30px; background: $color-primary; color: white; font-size: 36px; font-weight: 700; }
+.auth-brand__title { margin-top: $space-lg; font-size: 28px; font-weight: 700; }
+.auth-brand__description { margin-top: $space-sm; color: $color-text-secondary; }
+.auth-card { margin-top: 56px; padding: $space-lg; border-radius: $radius-md; background: $color-surface; }
+.auth-invite-summary { margin-bottom: $space-lg; padding: $space-md; border-radius: $radius-sm; background: $color-primary-soft; }
+.auth-invite-summary__title, .auth-invite-summary__description { display: block; }
+.auth-invite-summary__title { color: $color-primary; font-weight: 700; }
+.auth-invite-summary__description { margin-top: $space-xs; color: $color-text-secondary; font-size: $font-sm; line-height: 1.6; }
+.privacy-consent { display: flex; align-items: flex-start; gap: $space-sm; font-size: $font-sm; line-height: 1.6; }
+.privacy-consent checkbox { transform: scale(.8); }
+.auth-error { display: block; margin: $space-md 0; color: $color-danger; font-size: $font-sm; }
+.auth-card button { margin-top: $space-md; }

@@ -39,6 +39,42 @@ describe('health API', () => {
     expect(response.headers['x-request-id']).toBe('req_client-123')
   })
 
+  it('provides a liveness alias with restrictive API headers', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/health/live')
+      .expect(200)
+
+    expect(response.body.data.status).toBe('ok')
+    expect(response.headers['x-content-type-options']).toBe('nosniff')
+    expect(response.headers['x-frame-options']).toBe('DENY')
+    expect(response.headers['cache-control']).toBe('no-store')
+  })
+
+  it('hides internal metrics when no monitoring token is configured', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/health/metrics')
+      .expect(404)
+
+    expect(JSON.stringify(response.body)).not.toMatch(
+      /exportQueue|database|bucket|token/i,
+    )
+  })
+
+  it('rejects JSON bodies above the configured limit before business handling', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/platform-login')
+      .send({ platform: 'wechat', code: 'x'.repeat(300_000) })
+      .expect(413)
+
+    expect(response.body.error.code).toBe('VALIDATION_FAILED')
+    expect(response.body.error.requestId).toMatch(/^req_[0-9a-f-]+$/)
+    expect(response.headers['x-request-id']).toBe(
+      response.body.error.requestId,
+    )
+    expect(response.headers['x-content-type-options']).toBe('nosniff')
+    expect(JSON.stringify(response.body)).not.toMatch(/stack|exception/i)
+  })
+
   it('returns the standard error shape without framework details', async () => {
     const response = await request(app.getHttpServer())
       .get('/api/v1/not-found')

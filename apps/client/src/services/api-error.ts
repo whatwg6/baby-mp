@@ -24,6 +24,11 @@ export class ApiClientError extends Error {
   }
 }
 
+export function isResourceAccessError(error: unknown): error is ApiClientError {
+  return error instanceof ApiClientError &&
+    (error.status === 403 || error.status === 404)
+}
+
 export function mapApiError(payload: unknown, status?: number): ApiClientError {
   const parsed = errorResponseSchema.safeParse(payload)
 
@@ -40,6 +45,12 @@ export function mapApiError(payload: unknown, status?: number): ApiClientError {
 
 export function mapNetworkError(error: unknown): ApiClientError {
   if (error instanceof ApiClientError) return error
+  if (error instanceof Error && error.name === 'AbortError') {
+    return new ApiClientError('请求已取消', {
+      code: 'INTERNAL_ERROR',
+      cause: error,
+    })
+  }
 
   return new ApiClientError('无法连接服务，请检查网络后重试', {
     code: 'INTERNAL_ERROR',
